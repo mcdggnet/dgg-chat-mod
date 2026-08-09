@@ -30,8 +30,15 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(ChatComponent.class)
 public class ChatComponentMixin {
 
-    /** Per screen pixel. About a sixth of a unit between adjacent lines, and never above 4. */
-    private static final float DEPTH_PER_PIXEL = 0.02f;
+    /**
+     * Depth is spread across the screen height rather than accumulated per pixel.
+     *
+     * <p>The per-pixel version saturated: at 0.02 a line reached the 4.0 ceiling by y=200,
+     * and chat sits below that, so most lines shared one depth. Ties fall back to draw
+     * order, and chat draws newest first, so the older line written afterwards won the
+     * LEQUAL test and covered the newer one. Scaling by screen height keeps the ordering
+     * strict everywhere while still never exceeding the ceiling.
+     */
     private static final float MAX_DEPTH = 4.0f;
 
     @WrapOperation(
@@ -47,8 +54,10 @@ public class ChatComponentMixin {
         if (!DggFont.isActive()) {
             return original.call(graphics, font, text, x, y, colour);
         }
+        int height = Math.max(1, graphics.guiHeight());
+        float depth = MAX_DEPTH * Math.min(1.0f, Math.max(0, y) / (float) height);
         graphics.pose().pushPose();
-        graphics.pose().translate(0.0f, 0.0f, Math.min(MAX_DEPTH, Math.max(0, y) * DEPTH_PER_PIXEL));
+        graphics.pose().translate(0.0f, 0.0f, depth);
         int width = original.call(graphics, font, text, x, y, colour);
         graphics.pose().popPose();
         return width;

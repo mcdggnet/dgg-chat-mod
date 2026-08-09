@@ -10,7 +10,8 @@
   "client": [
     "ChatComponentMixin",
     "ClientSuggestionProviderMixin",
-    "FontSetMixin"
+    "FontSetMixin",
+    "PlayerTabOverlayMixin"
   ],
   "server": []
 }
