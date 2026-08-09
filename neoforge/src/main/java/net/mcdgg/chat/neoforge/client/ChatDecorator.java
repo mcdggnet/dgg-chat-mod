@@ -34,7 +34,7 @@ final class ChatDecorator {
         try {
             EmoteMatcher matcher = DggFont.isActive() ? DggAssets.matcher() : EmoteMatcher.none();
             MessageRewriter rewriter = new MessageRewriter(
-                    matcher, senderStyle(event.getSender()),
+                    matcher, senderStyle(resolveSender(event)),
                     DggAssets.nameColonFormat(), Util.getMillis());
 
             Component original = event.getMessage();
@@ -138,6 +138,60 @@ final class ChatDecorator {
             names.add(nick);
         }
         return names.isEmpty() ? null : new MessageRewriter.SenderStyle(names, colour.orElse(null), icons);
+    }
+
+    /**
+     * The sender's UUID, falling back to reading the name out of the line.
+     *
+     * <p>{@code getSender()} is null whenever the line did not arrive as signed player
+     * chat. That is not an edge case here: ATM10 ships No Chat Reports with
+     * {@code convertToGameMessage} enabled, which deliberately turns player chat into a
+     * game message to strip signatures, and a game message has no sender. Without this
+     * fallback every message on the pack loses its identity, so names render plain and no
+     * flair is ever drawn, while the rest of the rewrite still happens: the failure looks
+     * like broken flair rather than a missing sender.
+     *
+     * <p>Matching on the leading name is safe because it only ever looks at the part
+     * before the separator, and only accepts a name belonging to a player currently in
+     * the tab list.
+     */
+    private static UUID resolveSender(ClientChatReceivedEvent event) {
+        UUID sender = event.getSender();
+        if (sender != null && !Util.NIL_UUID.equals(sender)) {
+            return sender;
+        }
+        String name = leadingName(event.getMessage().getString());
+        if (name == null) {
+            return null;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.getConnection() == null) {
+            return null;
+        }
+        for (PlayerInfo info : minecraft.getConnection().getOnlinePlayers()) {
+            if (info.getProfile().getName().equals(name)) {
+                return info.getProfile().getId();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The name from "&lt;Name&gt; message" or "Name: message", or null if the line is not
+     * shaped like chat at all. Deliberately strict: a system line such as
+     * "JourneyMap: Press [J]" yields "JourneyMap", which simply matches no player.
+     */
+    private static String leadingName(String text) {
+        if (text.startsWith("<")) {
+            int close = text.indexOf('>');
+            return close > 1 ? text.substring(1, close) : null;
+        }
+        int colon = text.indexOf(':');
+        // A name cannot contain a space, so anything before the colon that does is not one.
+        if (colon <= 0 || text.lastIndexOf(' ', colon) >= 0) {
+            return null;
+        }
+        return text.substring(0, colon);
     }
 
     private static PlayerInfo playerInfo(UUID uuid) {

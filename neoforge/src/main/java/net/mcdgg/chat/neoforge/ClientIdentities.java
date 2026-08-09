@@ -1,6 +1,8 @@
 package net.mcdgg.chat.neoforge;
 
+import com.mojang.logging.LogUtils;
 import net.mcdgg.chat.api.DggChatIdentity;
+import org.slf4j.Logger;
 
 import java.util.Map;
 import java.util.Optional;
@@ -17,13 +19,23 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ClientIdentities {
 
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     private static final Map<UUID, DggChatIdentity> BY_UUID = new ConcurrentHashMap<>();
 
     private ClientIdentities() {}
 
     static void accept(IdentityPayload payload) {
         for (IdentityPayload.Entry entry : payload.entries()) {
-            BY_UUID.put(entry.minecraftUuid(), entry.toIdentity());
+            DggChatIdentity identity = entry.toIdentity();
+            BY_UUID.put(entry.minecraftUuid(), identity);
+            // Without this there is nothing anywhere on the client saying an identity
+            // arrived, so "the packet never came" and "it came and rendering failed"
+            // look identical. That ambiguity already sent one investigation down the
+            // wrong path.
+            LOGGER.info("identity received: {} nick={} tier={} features={}",
+                    entry.minecraftUuid(), identity.dggNick(), identity.subTier(),
+                    identity.features());
         }
     }
 
