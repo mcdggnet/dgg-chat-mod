@@ -242,9 +242,15 @@ icons and the same name colour it would have in destiny.gg chat.
 ### Where identity comes from: another mod
 
 **This mod does not look identity up itself.** `dggauth-proxy` already resolves DGG
-identities at login and already runs on this server as a NeoForge mod, holding
-`DggIdentity(minecraftUuid, dggId, dggNick, ban, subTier)` for every online player. This
-mod consumes that.
+identities at login and already runs on this server as a NeoForge mod. This mod consumes
+that.
+
+As of `dggauth-proxy` commit `56eb863` the record carries everything needed:
+
+```java
+record DggIdentity(UUID minecraftUuid, Optional<String> dggId, Optional<String> dggNick,
+                   Optional<DggBan> ban, int subTier, List<String> features)
+```
 
 The handoff should be a **`ServiceLoader` SPI owned by this mod**: declare a
 `DggIdentitySource` interface, and let any mod on the classpath provide an
@@ -258,13 +264,15 @@ this works across jars, and the coupling is loose in the right direction:
   `ServiceLoader` looks for it, so if this mod is absent nothing references the missing
   types and nothing breaks.
 
-**One gap to close first:** `DggIdentity` today carries `subTier` but **not the
-`features` array**, and `features` is exactly what flair and colour are computed from.
-The auth service's lookup response already returns a `userinfo` object that
-`LinkApiClient.parseIdentity` reads `subscription.tier` out of, so `features` most
-likely needs plumbing through rather than a new source. Confirm what that endpoint
-returns before designing around it. If it does not carry features, the DGG chat
-websocket does, on every `MSG` frame, which is a second possible source.
+`features` is the field flair icons and username colour are computed from, and it is
+already parsed from `userinfo.features` in the lookup response and passed through
+**verbatim**, deliberately untranslated: appearance is resolved against destiny.gg's own
+`flairs.json` by whoever renders it, so resolving it upstream would fork that logic and
+go stale. Missing key, `null`, and non-array all degrade to an empty list rather than
+throwing, so an unlinked or partially-resolved player renders as a plain name.
+
+That closes the one hard blocker this brief previously carried. Nothing else about
+identity needs to change in `dggauth` before work starts here.
 
 ### What goes over the wire
 
@@ -277,6 +285,8 @@ when their identity resolves, plus a small delta when it changes:
 | DGG nickname | display name, with DGG's casing |
 | `features[]` | flair names, verbatim, e.g. `["subscriber","flair33","moderator"]` |
 | sub tier | for emote gating, if that is enabled |
+
+That is `DggIdentity` minus `ban`, which is the auth service's business and not chat's.
 
 Deliberately **not** on the wire: colours, icon URLs, priorities. The client already has
 `flairs.json` and `flairs.css` from the CDN and computes appearance from feature names,
@@ -381,8 +391,6 @@ small shared API artifact is the safer default.
 
 ## Open questions
 
-- **Does the auth lookup return `features`?** Everything about flair rendering depends on
-  it. First thing to check.
 - **Sprite frame timing after tier 2.** The 29 stepped emotes are mechanical. The 41
   single-track tweens need a decision on whether a small transform and opacity
   interpolator is worth building, or whether still images are fine for them forever.
