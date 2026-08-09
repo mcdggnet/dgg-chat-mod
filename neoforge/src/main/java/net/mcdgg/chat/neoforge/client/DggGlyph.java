@@ -183,7 +183,18 @@ final class DggGlyph implements GlyphInfo {
 
     /** Render thread. Writes the current frame into the atlas if it has changed. */
     void animate(long nowMs) {
-        if (animation == null || atlasTexture < 0 || image == null) {
+        if (atlasTexture < 0 || image == null) {
+            return;
+        }
+        if (animation == null) {
+            // A still image needs exactly one upload, and bake() may not have managed it:
+            // the slot is blanked there when the download has not landed yet, and for a
+            // still there is no later frame to correct it. Without this a flair whose PNG
+            // arrived after its glyph was baked stays blank for the rest of the session,
+            // which reads as a correctly sized gap where the icon should be.
+            if (uploadedTile != 0) {
+                uploadTile(0);
+            }
             return;
         }
         int tile = animation.tileAt(nowMs - startedAtMs);
