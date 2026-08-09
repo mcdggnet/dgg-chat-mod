@@ -4,3 +4,8 @@ run/
 .idea/
 *.iml
 .vscode/
+
+# baker
+baker/node_modules/
+baker/out/
+baker/.cache/

@@ -1,0 +1,74 @@
+# Re-render destiny.gg's emotes into frames the mod can draw.
+#
+# Manual on purpose. The output is derived from Destiny.gg's assets, and whether it may be
+# republished is an open question in the README rather than something a schedule should
+# decide. This produces an artifact; putting it on a host is a deliberate act.
+name: bake
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Comma-separated emote prefixes, or blank for all of them"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bake-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: baker
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: baker/package-lock.json
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Bake
+        run: |
+          if [ -n "${{ inputs.only }}" ]; then
+            node src/bake.mjs --out out --concurrency 4 --only "${{ inputs.only }}"
+          else
+            node src/bake.mjs --out out --concurrency 4
+          fi
+
+      - name: Summarise
+        run: |
+          echo "### Bake" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          node -e "
+            const m = require('./out/manifest.json');
+            const tiles = Object.values(m.emotes).reduce((n, e) => n + e.tileCount, 0);
+            console.log(JSON.stringify({
+              emotes: Object.keys(m.emotes).length,
+              tiles,
+              flairs: m.flairs.length,
+              icons: m.flairs.filter((f) => f.iconFile).length,
+              generatedAt: m.generatedAt,
+            }, null, 2));
+          " >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bake
+          path: baker/out
+          retention-days: 14

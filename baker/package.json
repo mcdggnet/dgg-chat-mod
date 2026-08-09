@@ -1,0 +1,21 @@
+{
+  "name": "dgg-chat-baker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Renders destiny.gg's emotes.css in headless Chromium and emits frames the mod can draw.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "bake": "node src/bake.mjs",
+    "browser": "playwright install chromium"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
