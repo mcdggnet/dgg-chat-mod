@@ -54,12 +54,17 @@ Fabric has no consumer here and should not be built.
 
 Four URLs. The site loads all four; so should the mod.
 
-| URL | What it carries |
-|---|---|
-| `cdn.destiny.gg/emotes/emotes.json` | the emote list: name, image URL, intrinsic size |
-| `cdn.destiny.gg/emotes/emotes.css` | **how each emote is actually drawn**, see below |
-| `cdn.destiny.gg/flairs/flairs.json` | flair list: name, label, colour, priority, icon |
-| `cdn.destiny.gg/flairs/flairs.css` | flair icon ordering and hidden flags |
+| URL | What it carries | Read by |
+|---|---|---|
+| `cdn.destiny.gg/emotes/emotes.json` | the emote list: name, image URL, intrinsic size | the baker |
+| `cdn.destiny.gg/emotes/emotes.css` | **how each emote is actually drawn**, see below | the baker |
+| `cdn.destiny.gg/flairs/flairs.json` | flair list: name, label, colour, priority, icon | the client |
+| `cdn.destiny.gg/flairs/flairs.css` | flair icon ordering and hidden flags | the client |
+
+Emote data is consumed by the offline baker rather than by the client, for reasons in
+[Bake the animations with a real browser](#bake-the-animations-with-a-real-browser). The
+client reads flairs directly and gets emotes as pre-rendered frames from `mcdgg.net`.
+Everything below about emote data still matters, because the baker has to get it right.
 
 Image URLs inside the CSS are relative, so they resolve against the CSS's own directory
 (`cdn.destiny.gg/emotes/`), not against the versioned path in the JSON. The JSON's URLs
@@ -185,50 +190,88 @@ scaling, and emotes work anywhere text is drawn.
 
 This is **not** the thing the earlier draft of this brief rejected. That was the *server
 plugin's* resource-pack glyph substitution, which is static because a resource pack
-ships fixed images. A client-side dynamic font has neither constraint: textures come off
-the CDN and can be re-uploaded per frame to animate.
+ships fixed images. A client-side dynamic font has neither constraint: textures are
+fetched at runtime and can be re-uploaded per frame to animate.
 
 The alternative is mixing into the chat renderer and drawing quads directly. It gives
-full control over transforms, and it is the only way to reach the bespoke effects in
-tier 3 below, but it fights every other mod that touches chat and it means
+full control, but it fights every other mod that touches chat and it means
 reimplementing wrapping. Prefer the font; fall back to this only if a specific effect
 justifies it.
+
+A third option, an embedded browser rendering chat-gui itself, was considered and
+rejected. See non-goals for why.
 
 Either way animation advances on a **wall clock**, never a tick counter: chat must look
 right at low TPS and must keep animating while the game is paused with chat open.
 
-### Fidelity tiers
+### Bake the animations with a real browser
 
-Reproducing `emotes.css` exactly would mean implementing a CSS animation engine. The
+Reproducing `emotes.css` in Java would mean writing a CSS animation engine. The
 declarations are hand-written and irregular: multi-track shorthands, arbitrary property
 order, `!important`, custom properties, negative delays, `alternate-reverse`,
 `cubic-bezier`, `::before` and `::after` content, and sibling selectors like
-`.emote.GIGACHAD + .emote.ApeHands`. That is not worth building. Tier the work instead:
+`.emote.GIGACHAD + .emote.ApeHands`. Hand-implementing a useful subset would still leave
+roughly 73 emotes as still images forever.
 
-| Tier | What | Roughly | Plan |
-|---|---|---|---|
-| 0 | plain image, no override | 191 | draw it |
-| 1 | animation baked into the file (GIF, WebP, AVIF) | 35 | decode frames and delays from the file |
-| 2 | sprite strip stepped by `steps(N)` over `background-position` | 29 | frame index from the wall clock |
-| 3a | single continuous track (transform, filter, opacity) | 41 | tier 0 for v1; a small tween subset later |
-| 3b | multi-track, pseudo-element or sibling-dependent | 32 | tier 0, do not attempt |
+So do not write the engine. **Let Chromium render the CSS once, offline, and ship the
+frames.**
 
-Those counts are from classifying the live CSS today and will drift. **Do not hardcode
-them.** Write a small generator that parses `emotes.css` and emits one
-`emote-render.json` with the display geometry and, where the pattern is recognised, the
-frame count, duration, iteration count and delay. Everything it does not recognise is
-tier 0, which is a correct render, just a still one.
+A headless browser driven by Playwright loads the real `emotes.css`, mounts each emote
+in the same `.msg-chat` DOM context the site uses, advances the clock deterministically
+through the DevTools Protocol's virtual time, and screenshots each frame. Out comes a
+sprite sheet plus timings per emote. Because the frames were produced by the actual
+engine, bespoke effects come out pixel-exact rather than approximated.
 
-Generate at build time and ship the result, so a CDN change cannot break rendering
-silently, and re-run it when emotes change. The runtime then needs no CSS parser at all.
+The client then holds no CSS parser and no browser. It picks a frame off a wall clock.
 
-Skip hover variants: roughly half the animation rules are `:hover` duplicates and there
-is no hover in Minecraft chat.
+| Emote group | Roughly | Source of frames |
+|---|---|---|
+| plain image, no override | 191 | the image itself, no bake needed |
+| animation baked into the file (GIF, WebP, AVIF) | 35 | decode frames and delays from the file |
+| sprite strip stepped by `steps(N)` | 29 | already frames; slice by the CSS geometry |
+| single continuous track (transform, filter, opacity) | 41 | **bake** |
+| multi-track, pseudo-element or sibling-dependent | 32 | **bake** |
+
+Counts are from classifying the live CSS today and will drift. **Do not hardcode them.**
+The bake decides per emote which group applies; a still image is still the right output
+for the 191.
+
+Two details the bake has to get right:
+
+- **Transforms draw outside the emote box.** `translate` and `scale` push pixels past the
+  declared width and height, so capture a padded canvas and record the offset back to the
+  text baseline, rather than cropping to the CSS box and clipping the effect.
+- **Skip `:hover` variants.** Roughly half the animation rules are hover duplicates and
+  there is no hover in Minecraft chat.
+
+What the bake cannot capture is anything depending on surrounding context: `AMOGUS`
+hue-rotating by `nth-child` position, `.GIGACHAD + .ApeHands` reacting to its neighbour,
+and hover. Those bake in their default context only. That is a small and enumerable
+loss, against 73 emotes that would otherwise never animate at all.
+
+### Where the baked output lives
+
+Serve it from `mcdgg.net`, not from the repo and not from destiny.gg:
+
+- **Not the repo**, because committing baked emotes means committing derived copies of
+  Destiny.gg's assets. Fetching keeps that at arm's length, which was already the
+  argument for fetching in the first place.
+- **Not destiny.gg**, because the whole point is that the frames are ours to generate.
+  Their CDN has no baked form to serve.
+
+A cron re-bakes when `emotes.json` changes, so a new emote appears for players without a
+mod release. The client fetches one manifest plus atlases and caches them on disk. This
+also sidesteps the CDN's 403-on-unusual-user-agent behaviour, since only the baker talks
+to destiny.gg.
+
+Flairs stay a direct client-side fetch from destiny.gg. They are static images with no
+animation and nothing to bake.
 
 ### Failure behaviour
 
-Unknown name, failed download, decode error, unparsed CSS: fall through to plain text.
-Chat does not throw, and the render thread never waits on the network.
+Unknown name, failed download, decode error, emote missing from the bake manifest: fall
+through to plain text. Chat does not throw, and the render thread never waits on the
+network.
 
 ---
 
@@ -380,7 +423,7 @@ ModDevGradle's decompile step.
 |---|---|
 | `api` | the `DggIdentitySource` SPI and the identity record. No Minecraft, no NeoForge. |
 | `neoforge` | both halves of the mod, `side`-scoped. |
-| `tools` | the `emotes.css` parser that generates `emote-render.json`. Plain Java, runs in CI. |
+| `baker` | the Playwright bake pipeline and its manifest writer. Not Java; runs in CI, not in the game. |
 
 Whether this should instead become another module inside `dggauth-proxy` is worth
 asking: it would share `api`, the toolchain and the release process, at the cost of
@@ -391,9 +434,12 @@ small shared API artifact is the safer default.
 
 ## Open questions
 
-- **Sprite frame timing after tier 2.** The 29 stepped emotes are mechanical. The 41
-  single-track tweens need a decision on whether a small transform and opacity
-  interpolator is worth building, or whether still images are fine for them forever.
+- **Bake frame rate and size budget.** Frames are a straight trade of fidelity against
+  download and VRAM. Some animations are long: `catJAM` runs 6.5s at 188 steps and
+  `BINGQILIN` is a 6390px strip. Pick a capture rate, decide whether to dedupe identical
+  frames, and set a per-emote frame ceiling.
+- **Padding for transforms.** How much canvas to leave around the CSS box before pixels
+  start getting clipped. Measurable from the CSS rather than guessed, but it needs doing.
 - **Animation lifetime.** On the site an animation runs a fixed number of iterations
   from when the message appears, then stops. If emotes share one animated texture per
   emote type, every instance shares a timeline and they animate in sync. Simpler, and
@@ -404,15 +450,30 @@ small shared API artifact is the safer default.
   a missing emote is the better failure; stale is almost certainly right.
 - **Scope beyond chat.** Signs, item names, nameplates. Chat first. A font-based
   implementation gets these nearly for free, which is another argument for it.
-- **Asset licensing.** The emotes are Destiny.gg's. Fetching at runtime from their CDN is
-  materially different from committing them to a repo, and is one more reason to fetch.
+- **Asset licensing, and baking makes this a real question rather than a footnote.** The
+  emotes are Destiny.gg's. A client fetching them from destiny.gg's own CDN is plainly
+  fine. Generating derived frames and serving them from `mcdgg.net` is redistribution,
+  even though it is the same pixels for the same audience. Worth asking rather than
+  assuming, given this is a DGG community server rendering DGG emotes for DGG viewers.
 
 ## Non-goals
 
 - Fabric. No consumer.
 - Combo counters, greentext, mentions, embeds, and the rest of chat-gui's formatter
   chain. Emotes and identity only.
-- Reproducing tier 3b emote effects. Static is the correct answer for those.
+- **An embedded browser on the client.** [MCEF](https://modrinth.com/mod/mcef) has a
+  NeoForge 1.21.1 build, and chat-gui already abstracts its message source behind an
+  `EventEmitter` (`MockChatSource` is a working drop-in), so running the real frontend
+  against Minecraft chat instead of the websocket is genuinely feasible. It is still the
+  wrong trade. Minecraft chat is not text, it is `Component`s carrying `ClickEvent` and
+  `HoverEvent`, and `SHOW_ITEM` renders a real item tooltip through Minecraft's item
+  renderer plus every mod's tooltip callbacks. None of that survives conversion to HTML,
+  and on ATM10 it is load-bearing: quest notifications, advancement and death messages,
+  teleport and waypoint links. The cost is real too, a per-client Chromium fetched from
+  a third-party host, but the lost chat behaviour is the actual reason. Baking gets the
+  pixel fidelity without any of it.
+- Context-dependent emote effects: `nth-child` hue rotation, sibling-pair reactions, and
+  hover. The bake captures the default context only.
 - Any change to `DGGServerPlugin`'s existing glyph substitution on the Paper servers.
   That path keeps working for players without this mod and is not this mod's business.
 
