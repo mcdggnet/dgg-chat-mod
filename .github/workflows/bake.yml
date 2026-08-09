@@ -1,13 +1,24 @@
-# Re-render destiny.gg's emotes into frames the mod can draw.
+# Re-render destiny.gg's emotes into frames the mod can draw, and serve them.
 #
-# Manual on purpose. The output is derived from Destiny.gg's assets, and whether it may be
-# republished is an open question in the README rather than something a schedule should
-# decide. This produces an artifact; putting it on a host is a deliberate act.
+# Runs daily but publishes rarely: it hashes the four files the bake reads and stops unless
+# destiny.gg has actually changed one of them. A bake is 12MB and destiny.gg adds emotes
+# weeks apart, so almost every run ends in the check job having done nothing.
+#
+# The output goes to GitHub Pages rather than into the repository, because 12MB of generated
+# PNGs regenerated on every emote release is not something git history should carry.
 name: bake
 
 on:
+  schedule:
+    # 04:20 UTC, off the hour so it is not competing with everyone else's cron.
+    - cron: "20 4 * * *"
   workflow_dispatch:
     inputs:
+      force:
+        description: "Bake even if destiny.gg has not changed"
+        type: boolean
+        required: false
+        default: false
       only:
         description: "Comma-separated emote prefixes, or blank for all of them"
         required: false
@@ -16,18 +27,50 @@ on:
 permissions:
   contents: read
 
+# Never cancel a deploy in progress: a half-published site is worse than a late one.
 concurrency:
-  group: bake-${{ github.ref }}
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # cdn.destiny.gg answers 403 to user agents it does not recognise.
+  UA: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.compare.outputs.changed }}
+    steps:
+      - name: Compare destiny.gg against what is published
+        id: compare
+        run: |
+          set -euo pipefail
+
+          # Same four documents in the same order as the baker, so the hashes are comparable.
+          current=$(for u in emotes/emotes.json emotes/emotes.css flairs/flairs.json flairs/flairs.css; do
+            curl -fsSL -A "$UA" "https://cdn.destiny.gg/$u"
+          done | sha256sum | cut -d' ' -f1)
+
+          # No site yet, an unreadable manifest, or a manual force: bake.
+          site="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/manifest.json"
+          previous=$(curl -fsSL "$site" 2>/dev/null | jq -r '.sourceHash // empty' || true)
+
+          echo "current  $current"
+          echo "previous ${previous:-<none>}"
+
+          if [ "${{ inputs.force }}" = "true" ] || [ "$current" != "$previous" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "destiny.gg is unchanged; nothing to publish" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   bake:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    defaults:
-      run:
-        working-directory: baker
-
     steps:
       - uses: actions/checkout@v7
 
@@ -38,11 +81,14 @@ jobs:
           cache-dependency-path: baker/package-lock.json
 
       - run: npm ci
+        working-directory: baker
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+        working-directory: baker
 
       - name: Bake
+        working-directory: baker
         run: |
           if [ -n "${{ inputs.only }}" ]; then
             node src/bake.mjs --out out --concurrency 4 --only "${{ inputs.only }}"
@@ -50,25 +96,53 @@ jobs:
             node src/bake.mjs --out out --concurrency 4
           fi
 
-      - name: Summarise
+      - name: Write a landing page
+        working-directory: baker/out
         run: |
-          echo "### Bake" >> "$GITHUB_STEP_SUMMARY"
-          echo '```json' >> "$GITHUB_STEP_SUMMARY"
-          node -e "
-            const m = require('./out/manifest.json');
-            const tiles = Object.values(m.emotes).reduce((n, e) => n + e.tileCount, 0);
-            console.log(JSON.stringify({
-              emotes: Object.keys(m.emotes).length,
-              tiles,
-              flairs: m.flairs.length,
-              icons: m.flairs.filter((f) => f.iconFile).length,
-              generatedAt: m.generatedAt,
-            }, null, 2));
-          " >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          count=$(jq '.emotes | length' manifest.json)
+          flairs=$(jq '.flairs | length' manifest.json)
+          generated=$(jq -r '.generatedAt' manifest.json)
+          cat > index.html <<HTML
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>dgg-chat-mod emotes</title>
+          <style>
+            :root { color-scheme: light dark; }
+            body { font: 16px/1.6 system-ui, sans-serif; margin: 4rem auto; max-width: 42rem; padding: 0 1rem; }
+            code { font-family: ui-monospace, monospace; }
+          </style>
+          <h1>dgg-chat-mod emotes</h1>
+          <p>Destiny.gg's emotes, rendered to frames Minecraft can draw. Consumed by
+          <a href="https://github.com/${{ github.repository }}">${{ github.repository }}</a>;
+          not intended for people to browse.</p>
+          <p><a href="manifest.json"><code>manifest.json</code></a> —
+          $count emotes, $flairs flairs, baked $generated.</p>
+          HTML
 
-      - uses: actions/upload-artifact@v7
+      - name: Summarise
+        working-directory: baker/out
+        run: |
+          {
+            echo "### Bake"
+            echo '```json'
+            jq '{emotes: (.emotes | length), tiles: ([.emotes[].tileCount] | add), flairs: (.flairs | length), icons: ([.flairs[] | select(.iconFile)] | length), generatedAt, sourceHash}' manifest.json
+            echo '```'
+            echo "$(du -sh . | cut -f1) total"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-pages-artifact@v5
         with:
-          name: bake
           path: baker/out
-          retention-days: 14
+
+  deploy:
+    needs: bake
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

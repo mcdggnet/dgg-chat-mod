@@ -10,13 +10,13 @@ Facts below about destiny.gg's data were verified against the live CDN and the
 
 ## State
 
-Built and working end to end, with one thing missing: the baked emotes are not hosted
-anywhere yet. Point `config/dggchat.properties` at a manifest and the mod draws emotes;
-leave it at the default and chat looks exactly like vanilla chat.
+Built and working end to end. The baked emotes are served from GitHub Pages by this
+repository's `bake` workflow, which the mod points at by default; if it cannot reach the
+manifest, chat looks exactly like vanilla chat.
 
 | | |
 |---|---|
-| `core` | emote matching, flair resolution, username colour, ported from chat-gui. 55 tests. |
+| `core` | emote matching, flair resolution, username colour, ported from chat-gui. 59 tests. |
 | `api` | the identity SPI another mod implements. 4 tests. |
 | `neoforge` | the mod: optional payload, identity relay, glyph provider, chat rewrite. 14 tests. |
 | `baker` | the Playwright bake. Produces all 324 emotes and 46 flairs. |
@@ -287,13 +287,29 @@ hue-rotating by `nth-child` position, `.GIGACHAD + .ApeHands` reacting to its ne
 
 ### Where the baked output lives
 
-**Nowhere yet.** The client reads `manifestUrl` from `config/dggchat.properties`, which the
-mod writes on first run, and the `dggchat.manifest` system property overrides it. The
-default points at `mcdgg.net`, which does not serve it today.
+GitHub Pages, published by the `bake` workflow:
 
-Not the repo, because committing baked emotes means committing derived copies of
-Destiny.gg's assets. Not destiny.gg, because the whole point is that the frames are ours to
-generate and their CDN has no baked form to serve.
+```
+https://mcdggnet.github.io/dgg-chat-mod/manifest.json
+```
+
+The client reads `manifestUrl` from `config/dggchat.properties`, which the mod writes on
+first run, and the `dggchat.manifest` system property overrides it. Pointing a custom domain
+at the same Pages site later changes one config line and nothing else.
+
+An earlier draft treated serving derived copies of Destiny.gg's emotes as an open licensing
+question. It is not one: this is the Destiny.gg Minecraft server, `mc.destiny.gg`, rendering
+Destiny.gg emotes for the people who already watch them on destiny.gg.
+
+Not committed to the repo, though, for a duller reason: 12MB of generated PNGs regenerated
+whenever destiny.gg adds an emote is not something git history should carry. Pages takes it
+as a build artifact instead.
+
+The workflow runs daily but publishes rarely. It hashes the four documents the bake reads
+and stops unless one of them changed, so almost every run ends having done nothing.
+Bandwidth is not a concern either: clients fetch an emote the first time they see it and
+cache it on disk, so a full server is a few megabytes each, once, against Pages' 100GB
+monthly allowance.
 
 ### Failure behaviour
 
@@ -429,14 +445,6 @@ anywhere in the repo or its settings.
 
 ## Open questions
 
-- **Asset licensing, and it is the one blocking anything shipping.** The emotes are
-  Destiny.gg's. A client fetching them from destiny.gg's own CDN is plainly fine. Generating
-  derived frames and serving them from `mcdgg.net` is redistribution, even though it is the
-  same pixels for the same audience. Worth asking rather than assuming, given this is a DGG
-  community server rendering DGG emotes for DGG viewers. Until it is answered the bake
-  workflow is manual and publishes nothing.
-- **Where to host the bake, and how to re-run it.** 12MB per bake. A cron on `emotes.json`
-  changing would keep new emotes appearing without a mod release.
 - **Emote gating by sender tier.** Implemented and off. Product call.
 - **Scope beyond chat.** Signs, item names, nameplates come nearly free with a font-based
   implementation, with one caveat: those use Minecraft's fishy-glyph-filtering font, which

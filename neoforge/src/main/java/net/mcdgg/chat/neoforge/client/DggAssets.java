@@ -24,8 +24,13 @@ final class DggAssets {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Where the baked emotes are served from. Overridable, because it is one server. */
-    private static final String DEFAULT_MANIFEST_URL = "https://mcdgg.net/dggchat/manifest.json";
+    /**
+     * Where the baked emotes are served from: GitHub Pages, published by this repository's
+     * bake workflow. Overridable, and a custom domain can be pointed at the same site
+     * without anything here changing but this line.
+     */
+    private static final String DEFAULT_MANIFEST_URL =
+            "https://mcdggnet.github.io/dgg-chat-mod/manifest.json";
 
     private static final String CONFIG_FILE = "dggchat.properties";
     private static final String MANIFEST_KEY = "manifestUrl";

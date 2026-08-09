@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 
-import { Cdn, EMOTES_CSS, EMOTES_JSON, sha256, sniffMime } from './cdn.mjs';
+import { Cdn, EMOTES_CSS, EMOTES_JSON, FLAIRS_CSS, FLAIRS_JSON, sha256, sniffMime } from './cdn.mjs';
 import { harnessHtml, PAD, VIEWPORT } from './harness.mjs';
 import { bakeFlairs } from './flairs.mjs';
 import { cropAndStack, decode, unionAlphaBounds } from './png.mjs';
@@ -225,6 +225,16 @@ async function main() {
   const emotesJsonText = await cdn.getText(EMOTES_JSON);
   const allEmotes = JSON.parse(emotesJsonText);
 
+  // One hash over everything the bake reads, so a scheduled job can tell in a single
+  // comparison whether destiny.gg has changed anything and skip republishing 12MB if not.
+  // CI recomputes this with `cat ... | sha256sum`, so the order and the raw bytes matter.
+  const sourceHash = sha256(Buffer.concat([
+    await cdn.get(EMOTES_JSON),
+    await cdn.get(EMOTES_CSS),
+    await cdn.get(FLAIRS_JSON),
+    await cdn.get(FLAIRS_CSS),
+  ]));
+
   let selected = allEmotes;
   if (options.only) selected = selected.filter((e) => options.only.has(e.prefix));
   if (Number.isFinite(options.limit)) selected = selected.slice(0, options.limit);
@@ -286,6 +296,7 @@ async function main() {
     version: 1,
     generatedAt: new Date().toISOString(),
     emoteCss: sha256(Buffer.from(emotesCss, 'utf8')),
+    sourceHash,
     emotes: sortedEntries,
     flairs: flairs.entries,
   };

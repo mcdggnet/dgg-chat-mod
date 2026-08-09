@@ -86,7 +86,10 @@ stylesheet are hover duplicates and are skipped.
 
 ## Publishing
 
-Deliberately not automated. Serving derived copies of Destiny.gg's emotes is a licensing
-question for a person to answer, not a cron job — see the open question in the root README.
-The workflow in `.github/workflows/bake.yml` runs on demand and uploads the result as a
-build artifact; moving that to a host is a manual step.
+`.github/workflows/bake.yml` deploys the output to GitHub Pages at
+`https://mcdggnet.github.io/dgg-chat-mod/`, which is where the mod looks by default.
+
+It runs daily and publishes rarely: it hashes the four documents this reads and stops unless
+destiny.gg changed one of them, so almost every run does nothing. `sourceHash` in the
+manifest is that same hash, computed the same way, which is what makes the comparison a
+single line of `jq`. Run it by hand with `force` to republish regardless.
