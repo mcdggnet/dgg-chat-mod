@@ -39,23 +39,23 @@ neoForge {
 dependencies {
     // The identity SPI. jarJar bundles it into the mod jar, since a server has no
     // other way to supply it, while dggauth takes it as compileOnly from Packages.
-    implementation(project(":api"))
-    implementation(project(":core"))
-    jarJar(project(":api"))
-    jarJar(project(":core"))
+    implementation(project(":dgg-chat-api"))
+    implementation(project(":dgg-chat-core"))
+    jarJar(project(":dgg-chat-api"))
+    jarJar(project(":dgg-chat-core"))
 
     // jarJar covers the shipped jar, but a dev run launches from the source sets and never
     // sees it. Without these, runClient and runServer die constructing the mod with
     // NoClassDefFoundError on the SPI, which says nothing about whether the real jar works.
     // Named as a string because ModDevGradle registers the configuration too late for
     // Gradle to generate a Kotlin accessor for it.
-    add("additionalRuntimeClasspath", project(":api"))
-    add("additionalRuntimeClasspath", project(":core"))
+    add("additionalRuntimeClasspath", project(":dgg-chat-api"))
+    add("additionalRuntimeClasspath", project(":dgg-chat-core"))
     // Gson comes from Minecraft at runtime, but :core declares it compileOnly, so the dev
     // run needs it named somewhere.
     add("additionalRuntimeClasspath", "com.google.code.gson:gson:2.10.1")
 
-    testImplementation(project(":core"))
+    testImplementation(project(":dgg-chat-core"))
     testImplementation(platform("org.junit:junit-bom:5.14.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

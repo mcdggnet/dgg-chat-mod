@@ -22,11 +22,22 @@ dependencyResolutionManagement {
 }
 rootProject.name = "dgg-chat-mod"
 
-// Platform-free: the identity SPI another mod implements. No Minecraft, no NeoForge,
-// so dggauth can compile against it without dragging the game in.
-include(":api")
+// The two platform-free modules are named for what they publish as, not for the directory
+// they sit in. jarJar identifies an embedded library by its Gradle module coordinates and
+// not by the publication's artifactId, so calling these ":api" and ":core" would ship them
+// inside the mod jar as net.mcdgg:api and net.mcdgg:core. FML deduplicates jar-in-jar
+// libraries by group and artifact, so any other mod embedding something under names that
+// generic would collide with these and one of the two would lose.
+
+// The identity SPI another mod implements. No Minecraft, no NeoForge, so dggauth can
+// compile against it without dragging the game in.
+include(":dgg-chat-api")
+project(":dgg-chat-api").projectDir = file("api")
+
 // chat-gui's rendering rules, ported. Also platform-free, which is the point: the parts
 // that have to match destiny.gg exactly are the parts worth testing without a game around.
-include(":core")
+include(":dgg-chat-core")
+project(":dgg-chat-core").projectDir = file("core")
+
 // The mod itself: emote rendering on the client, identity relay on the server.
 include(":neoforge")

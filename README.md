@@ -16,8 +16,8 @@ manifest, chat looks exactly like vanilla chat.
 
 | | |
 |---|---|
-| `core` | emote matching, flair resolution, username colour, ported from chat-gui. 59 tests. |
-| `api` | the identity SPI another mod implements. 4 tests. |
+| `dgg-chat-core` | emote matching, flair resolution, username colour, ported from chat-gui. 59 tests. |
+| `dgg-chat-api` | the identity SPI another mod implements. 4 tests. |
 | `neoforge` | the mod: optional payload, identity relay, glyph provider, chat rewrite. 15 tests. |
 | `baker` | the Playwright bake. Produces all 324 emotes and 46 flairs. |
 
@@ -426,18 +426,25 @@ and flexbox falls back to document order there, so catalogue order stands in for
 A Gradle multi-module build where the NeoForge module is isolated, so building the parts
 that do not touch Minecraft never triggers ModDevGradle's decompile step.
 
-| Module | Contents |
-|---|---|
-| `api` | the `DggIdentitySource` SPI and `DggChatIdentity`. No Minecraft, no NeoForge. |
-| `core` | chat-gui's rules: emote matching, flair resolution, username colour, the manifest model, the asset cache. Also platform-free, which is the point: the parts that have to match destiny.gg are the parts worth testing without a game around. |
-| `neoforge` | the mod. |
-| `baker` | the Playwright bake. Node, not Java; runs in CI, never in the game. |
+The two platform-free modules are named for what they publish as rather than for the
+directory they sit in, because jarJar identifies an embedded library by its Gradle module
+coordinates and not by the publication's `artifactId`. Left as `:api` and `:core` they would
+ride inside the mod jar as `net.mcdgg:api` and `net.mcdgg:core`, and FML deduplicates
+jar-in-jar libraries by group and artifact, so any other mod embedding something under names
+that generic would collide and one of the two would lose.
+
+| Module | Directory | Contents |
+|---|---|---|
+| `dgg-chat-api` | `api/` | the `DggIdentitySource` SPI and `DggChatIdentity`. No Minecraft, no NeoForge. |
+| `dgg-chat-core` | `core/` | chat-gui's rules: emote matching, flair resolution, username colour, the manifest model, the asset cache. Also platform-free, which is the point: the parts that have to match destiny.gg are the parts worth testing without a game around. |
+| `neoforge` | `neoforge/` | the mod. Ships as `DGGChat-NeoForge-<version>.jar`. |
+| `baker` | `baker/` | the Playwright bake. Node, not Java; runs in CI, never in the game. |
 
 ### Building
 
 ```bash
-./gradlew build            # everything, including tests
-./gradlew :core:build      # no Minecraft download, builds in seconds
+./gradlew build                  # everything, including tests
+./gradlew :dgg-chat-core:build   # no Minecraft download, builds in seconds
 ./gradlew :neoforge:runClient
 ./gradlew :neoforge:runServer
 ```
