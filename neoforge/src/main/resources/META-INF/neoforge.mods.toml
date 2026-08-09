@@ -28,3 +28,8 @@ type = "required"
 versionRange = "[1.21.1,1.22)"
 ordering = "NONE"
 side = "BOTH"
+
+# Installs the emote glyph provider into the dggchat:emotes font. Client-only, and the
+# only vanilla method this mod touches. See FontSetMixin for why it is needed.
+[[mixins]]
+config = "dggchat.mixins.json"
