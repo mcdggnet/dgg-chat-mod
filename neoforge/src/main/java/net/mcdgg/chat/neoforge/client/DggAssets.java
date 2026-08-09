@@ -34,6 +34,7 @@ final class DggAssets {
 
     private static final String CONFIG_FILE = "dggchat.properties";
     private static final String MANIFEST_KEY = "manifestUrl";
+    private static final String NAME_COLON_KEY = "nameColonFormat";
     private static final String SYSTEM_PROPERTY = "dggchat.manifest";
 
     /** Emote art changes when destiny.gg adds emotes, which is weeks apart, not minutes. */
@@ -41,6 +42,7 @@ final class DggAssets {
 
     private static volatile EmoteMatcher matcher = EmoteMatcher.none();
     private static volatile FlairCatalogue flairs = FlairCatalogue.empty();
+    private static volatile boolean nameColonFormat = true;
 
     private DggAssets() {}
 
@@ -52,16 +54,25 @@ final class DggAssets {
         return flairs;
     }
 
+    /** Whether to render vanilla chat as {@code name: message} rather than {@code <name>}. */
+    static boolean nameColonFormat() {
+        return nameColonFormat;
+    }
+
     /**
      * Kicks off the load. Returns immediately; everything after this happens on a loader
      * thread and publishes through the two volatile fields above.
      */
     static void load(Path gameDirectory, Path configDirectory) {
+        Properties config = readConfig(configDirectory);
+        nameColonFormat = !"false".equalsIgnoreCase(
+                config.getProperty(NAME_COLON_KEY, "true").trim());
+
         Path cacheDirectory = gameDirectory.resolve("dggchat-cache");
         AssetCache cache = new AssetCache(cacheDirectory, REVALIDATE_AFTER);
         EmoteTextures.useCache(cache);
 
-        String url = manifestUrl(configDirectory);
+        String url = manifestUrl(config);
         Thread loader = new Thread(() -> loadManifest(cache, url), "dggchat-manifest");
         loader.setDaemon(true);
         loader.start();
@@ -83,29 +94,20 @@ final class DggAssets {
     }
 
     /**
-     * System property first so a launcher or a test can override without touching disk, then
-     * the config file, then the default. The file is written out when it is missing, because
-     * a setting nobody can find is not a setting.
+     * Reads the config file, writing it out with its defaults when it is missing, because a
+     * setting nobody can find is not a setting.
      */
-    private static String manifestUrl(Path configDirectory) {
-        String override = System.getProperty(SYSTEM_PROPERTY);
-        if (override != null && !override.isBlank()) {
-            return override.trim();
-        }
-
+    private static Properties readConfig(Path configDirectory) {
+        Properties properties = new Properties();
         Path file = configDirectory.resolve(CONFIG_FILE);
+
         if (Files.isRegularFile(file)) {
-            Properties properties = new Properties();
             try (var in = Files.newInputStream(file)) {
                 properties.load(in);
-                String configured = properties.getProperty(MANIFEST_KEY);
-                if (configured != null && !configured.isBlank()) {
-                    return configured.trim();
-                }
             } catch (IOException e) {
-                LOGGER.warn("could not read {}; using the default manifest URL", file, e);
+                LOGGER.warn("could not read {}; every setting falls back to its default", file, e);
             }
-            return DEFAULT_MANIFEST_URL;
+            return properties;
         }
 
         try {
@@ -114,10 +116,24 @@ final class DggAssets {
                     # Where dgg-chat-mod fetches baked emotes and flairs from.
                     # Produced by the baker in this repository; see its README.
                     %s=%s
-                    """.formatted(MANIFEST_KEY, DEFAULT_MANIFEST_URL));
+
+                    # Render chat as "name: message" the way destiny.gg does, instead of
+                    # vanilla's "<name> message". Set false to leave the line shape alone.
+                    %s=true
+                    """.formatted(MANIFEST_KEY, DEFAULT_MANIFEST_URL, NAME_COLON_KEY));
         } catch (IOException e) {
-            LOGGER.debug("could not write {}; the default URL still applies", file, e);
+            LOGGER.debug("could not write {}; defaults still apply", file, e);
         }
-        return DEFAULT_MANIFEST_URL;
+        return properties;
+    }
+
+    /** The system property wins, so a launcher or a test can override without touching disk. */
+    private static String manifestUrl(Properties config) {
+        String override = System.getProperty(SYSTEM_PROPERTY);
+        if (override != null && !override.isBlank()) {
+            return override.trim();
+        }
+        String configured = config.getProperty(MANIFEST_KEY);
+        return configured == null || configured.isBlank() ? DEFAULT_MANIFEST_URL : configured.trim();
     }
 }

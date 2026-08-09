@@ -33,8 +33,9 @@ final class ChatDecorator {
     static void onChatReceived(ClientChatReceivedEvent event) {
         try {
             EmoteMatcher matcher = DggFont.isActive() ? DggAssets.matcher() : EmoteMatcher.none();
-            MessageRewriter rewriter =
-                    new MessageRewriter(matcher, senderStyle(event.getSender()), Util.getMillis());
+            MessageRewriter rewriter = new MessageRewriter(
+                    matcher, senderStyle(event.getSender()),
+                    DggAssets.nameColonFormat(), Util.getMillis());
 
             Component original = event.getMessage();
             Component rewritten = rewriter.rewrite(original);

@@ -117,7 +117,7 @@ class MessageRewriterTest {
 
     @Test
     void emotesBecomeGlyphs() {
-        Component out = new MessageRewriter(matcher(), null, 0L)
+        Component out = new MessageRewriter(matcher(), null, false, 0L)
                 .rewrite(Component.literal("hello PEPE world"));
         assertEquals("hello <PEPE> world", render(out));
     }
@@ -126,8 +126,8 @@ class MessageRewriterTest {
     @DisplayName("a message with nothing to do comes back as the very same object")
     void unchangedMessagesAreNotCopied() {
         Component original = Component.literal("just talking");
-        assertSame(original, new MessageRewriter(matcher(), null, 0L).rewrite(original));
-        assertSame(original, new MessageRewriter(EmoteMatcher.none(), null, 0L).rewrite(original));
+        assertSame(original, new MessageRewriter(matcher(), null, false, 0L).rewrite(original));
+        assertSame(original, new MessageRewriter(EmoteMatcher.none(), null, false, 0L).rewrite(original));
     }
 
     @Test
@@ -135,7 +135,7 @@ class MessageRewriterTest {
     void translatableArgumentsAreRewritten() {
         Component decorated = Component.translatable("chat.type.text",
                 Component.literal("Steve"), Component.literal("PEPE PEPELAUGH"));
-        Component out = new MessageRewriter(matcher(), null, 0L).rewrite(decorated);
+        Component out = new MessageRewriter(matcher(), null, false, 0L).rewrite(decorated);
         assertEquals("<PEPE> <PEPELAUGH>", render(argument(out, 1)));
     }
 
@@ -143,7 +143,7 @@ class MessageRewriterTest {
     @DisplayName("a translation argument can be a bare String, and several servers send them")
     void stringArgumentsAreRewritten() {
         Component decorated = Component.translatable("chat.type.text", "Steve", "look PEPE");
-        Component out = new MessageRewriter(matcher(), null, 0L).rewrite(decorated);
+        Component out = new MessageRewriter(matcher(), null, false, 0L).rewrite(decorated);
         assertEquals("look <PEPE>", render((Component) translatableArgs(out)[1]));
     }
 
@@ -155,7 +155,7 @@ class MessageRewriterTest {
     void siblingsAreRewrittenToo() {
         Component message = Component.literal("a PEPE ")
                 .append(Component.literal("and Askers here"));
-        assertEquals("a <PEPE> and <Askers> here", render(new MessageRewriter(matcher(), null, 0L).rewrite(message)));
+        assertEquals("a <PEPE> and <Askers> here", render(new MessageRewriter(matcher(), null, false, 0L).rewrite(message)));
     }
 
     @Test
@@ -163,7 +163,7 @@ class MessageRewriterTest {
     void emoteStyleIsIsolated() {
         Component message = Component.literal("look PEPE")
                 .setStyle(Style.EMPTY.withColor(0xFF0000).withObfuscated(true).withBold(true));
-        Component out = new MessageRewriter(matcher(), null, 0L).rewrite(message);
+        Component out = new MessageRewriter(matcher(), null, false, 0L).rewrite(message);
 
         out.visit((style, text) -> {
             if (DggFont.FONT.equals(style.getFont())) {
@@ -179,7 +179,7 @@ class MessageRewriterTest {
     void nameTakesTheWinningFlairColour() {
         Component decorated = Component.translatable("chat.type.text",
                 Component.literal("Steve"), Component.literal("hi"));
-        Component out = new MessageRewriter(matcher(), sender("Steve", "flair12"), 0L).rewrite(decorated);
+        Component out = new MessageRewriter(matcher(), sender("Steve", "flair12"), false, 0L).rewrite(decorated);
 
         assertTrue(colours(argument(out, 0)).contains(0xE79015),
                 "the name should be painted with flair12's colour");
@@ -190,7 +190,7 @@ class MessageRewriterTest {
     void rainbowNames() {
         Component decorated = Component.translatable("chat.type.text",
                 Component.literal("Steve"), Component.literal("hi"));
-        Component out = new MessageRewriter(matcher(), sender("Steve", "flair33", "flair12"), 0L)
+        Component out = new MessageRewriter(matcher(), sender("Steve", "flair33", "flair12"), false, 0L)
                 .rewrite(decorated);
 
         // The component also holds the two flair icons, which come first.
@@ -204,7 +204,7 @@ class MessageRewriterTest {
     void flairIconsPrecedeTheName() {
         Component decorated = Component.translatable("chat.type.text",
                 Component.literal("Steve"), Component.literal("hi"));
-        Component out = new MessageRewriter(matcher(), sender("Steve", "flair33", "flair12", "moderator"), 0L)
+        Component out = new MessageRewriter(matcher(), sender("Steve", "flair33", "flair12", "moderator"), false, 0L)
                 .rewrite(decorated);
 
         assertEquals("<icon:flair33><icon:flair12>Steve", render(argument(out, 0)));
@@ -215,7 +215,7 @@ class MessageRewriterTest {
     void aNameThatIsAlsoAnEmote() {
         Component decorated = Component.translatable("chat.type.text",
                 Component.literal("PEPE"), Component.literal("look PEPE"));
-        Component out = new MessageRewriter(matcher(), sender("PEPE", "flair12"), 0L).rewrite(decorated);
+        Component out = new MessageRewriter(matcher(), sender("PEPE", "flair12"), false, 0L).rewrite(decorated);
 
         assertEquals("<icon:flair12>PEPE", render(argument(out, 0)),
                 "the username stays text, with its flair icon in front");
@@ -227,7 +227,7 @@ class MessageRewriterTest {
     void nameIsStyledOnce() {
         Component decorated = Component.translatable("chat.type.text",
                 Component.literal("Steve"), Component.literal("Steve said Steve"));
-        Component out = new MessageRewriter(matcher(), sender("Steve", "flair12"), 0L).rewrite(decorated);
+        Component out = new MessageRewriter(matcher(), sender("Steve", "flair12"), false, 0L).rewrite(decorated);
 
         assertTrue(colours(argument(out, 0)).contains(0xE79015));
         assertTrue(colours(argument(out, 1)).stream().noneMatch(c -> c != null && c == 0xE79015));
@@ -247,7 +247,7 @@ class MessageRewriterTest {
     void withoutGlyphsNothingIsLost() {
         DggFont.install(BakeManifest.empty());
         try {
-            Component out = new MessageRewriter(matcher(), null, 0L)
+            Component out = new MessageRewriter(matcher(), null, false, 0L)
                     .rewrite(Component.literal("hello PEPE"));
             assertEquals("hello PEPE", render(out));
         } finally {
@@ -259,9 +259,70 @@ class MessageRewriterTest {
     void styleOnTheOriginalSurvivesTheRewrite() {
         Component message = Component.literal("PEPE ok")
                 .setStyle(Style.EMPTY.withItalic(true));
-        Component out = new MessageRewriter(matcher(), null, 0L).rewrite(message);
+        Component out = new MessageRewriter(matcher(), null, false, 0L).rewrite(message);
         assertTrue(out.getStyle().isItalic(), "the surrounding style must be preserved");
         assertNotEquals(message, out);
+    }
+
+    @Test
+    @DisplayName("vanilla's <name> becomes name:, which is the shape destiny.gg reads in")
+    void nameColonFormat() {
+        Component decorated = Component.translatable("chat.type.text",
+                Component.literal("Steve"), Component.literal("hello PEPE"));
+        Component out = new MessageRewriter(matcher(), null, true, 0L).rewrite(decorated);
+        assertEquals("Steve: hello <PEPE>", render(out));
+    }
+
+    @Test
+    @DisplayName("the name's own bold does not leak onto the colon or the message body")
+    void reformattingDoesNotSpreadTheNameStyle() {
+        // A LuckPerms prefix arrives as bold on the sender argument. Hoisting that onto the
+        // wrapper is what turns the whole line bold, so the rewrite must not.
+        Component decorated = Component.translatable("chat.type.text",
+                Component.literal("Steve").setStyle(Style.EMPTY.withBold(true)),
+                Component.literal("hello"));
+        Component out = new MessageRewriter(matcher(), null, true, 0L).rewrite(decorated);
+
+        StringBuilder bolded = new StringBuilder();
+        out.visit((style, text) -> {
+            if (style.isBold()) {
+                bolded.append(text);
+            }
+            return java.util.Optional.empty();
+        }, Style.EMPTY);
+        assertEquals("Steve", bolded.toString());
+    }
+
+    @Test
+    @DisplayName("only plain chat is reshaped; /me and whispers keep their own format")
+    void otherChatTypesAreLeftAlone() {
+        Component emote = Component.translatable("chat.type.emote",
+                Component.literal("Steve"), Component.literal("waves PEPE"));
+        Component out = new MessageRewriter(matcher(), null, true, 0L).rewrite(emote);
+        assertEquals("chat.type.emote", key(out));
+        assertEquals("waves <PEPE>", render((Component) translatableArgs(out)[1]));
+    }
+
+    @Test
+    void reformattingCanBeTurnedOff() {
+        Component decorated = Component.translatable("chat.type.text",
+                Component.literal("Steve"), Component.literal("hello"));
+        assertSame(decorated, new MessageRewriter(matcher(), null, false, 0L).rewrite(decorated));
+    }
+
+    @Test
+    @DisplayName("flair icons and the name colour still land when the line is reshaped")
+    void reformattingKeepsIdentity() {
+        Component decorated = Component.translatable("chat.type.text",
+                Component.literal("Steve"), Component.literal("hi"));
+        Component out = new MessageRewriter(matcher(), sender("Steve", "flair12"), true, 0L)
+                .rewrite(decorated);
+        assertEquals("<icon:flair12>Steve: hi", render(out));
+        assertTrue(colours(out).contains(0xE79015));
+    }
+
+    private static String key(Component component) {
+        return ((net.minecraft.network.chat.contents.TranslatableContents) component.getContents()).getKey();
     }
 
     /** Reaches into a translatable component's nth argument. */
@@ -273,7 +334,7 @@ class MessageRewriterTest {
     /** Guards the assumption that MutableComponent.create keeps siblings out of the way. */
     @Test
     void rewriterProducesMutableComponents() {
-        Component out = new MessageRewriter(matcher(), null, 0L).rewrite(Component.literal("PEPE"));
+        Component out = new MessageRewriter(matcher(), null, false, 0L).rewrite(Component.literal("PEPE"));
         assertTrue(out instanceof MutableComponent);
     }
 }

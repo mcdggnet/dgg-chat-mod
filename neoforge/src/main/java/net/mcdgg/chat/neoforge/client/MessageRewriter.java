@@ -50,22 +50,31 @@ final class MessageRewriter {
      */
     record SenderStyle(List<String> names, Flair colour, List<Flair> icons) {}
 
+    /**
+     * Vanilla's plain chat line, {@code "<%s> %s"} with the sender and the body as arguments.
+     * Deliberately only this one: {@code /me}, whispers, team chat and announcements have
+     * their own formats that carry meaning, and flattening those would lose it.
+     */
+    private static final String VANILLA_CHAT = "chat.type.text";
+
     private final EmoteMatcher matcher;
     private final SenderStyle sender;
+    private final boolean nameColonFormat;
     private final long now;
 
     private boolean nameStyled;
     private boolean changed;
 
-    MessageRewriter(EmoteMatcher matcher, SenderStyle sender, long nowMs) {
+    MessageRewriter(EmoteMatcher matcher, SenderStyle sender, boolean nameColonFormat, long nowMs) {
         this.matcher = matcher == null ? EmoteMatcher.none() : matcher;
         this.sender = sender;
+        this.nameColonFormat = nameColonFormat;
         this.now = nowMs;
     }
 
     /** @return the rewritten message, or the original instance when nothing changed */
     Component rewrite(Component message) {
-        if (sender == null && !hasEmotes()) {
+        if (sender == null && !hasEmotes() && !nameColonFormat) {
             return message;
         }
         Component result = visit(message);
@@ -82,6 +91,11 @@ final class MessageRewriter {
 
         if (contents instanceof PlainTextContents plain) {
             out = rewriteText(plain.text());
+        } else if (contents instanceof TranslatableContents translatable
+                && nameColonFormat
+                && VANILLA_CHAT.equals(translatable.getKey())
+                && translatable.getArgs().length == 2) {
+            out = asNameColon(translatable.getArgs());
         } else if (contents instanceof TranslatableContents translatable) {
             // The vanilla "<%s> %s" decoration puts the sender and the message body in
             // here, so a rewrite that skipped arguments would skip the whole line.
@@ -108,6 +122,39 @@ final class MessageRewriter {
             out.append(visit(sibling));
         }
         return out;
+    }
+
+    /**
+     * Rebuilds vanilla's {@code <name> message} as {@code name: message}, the way destiny.gg
+     * reads.
+     *
+     * <p>It has to happen here rather than on the server. The angle brackets come from the
+     * chat type, whose format string lives in the client's own language file, so a server
+     * cannot change it; the only server-side escape is to stop sending player chat and
+     * broadcast a system message instead, and a system message carries no sender UUID — which
+     * is precisely what flair and username colour are resolved from. Rewriting the component
+     * here keeps the identity and changes the shape.
+     *
+     * <p>The name keeps whatever style it arrived with, which on a server running LuckPerms
+     * can include bold from a prefix. That style stays on the name because it is a child:
+     * siblings inherit from their parent, not from the sibling before them. Hoisting it onto
+     * the wrapper instead is what makes the colon and the whole message body go bold too.
+     */
+    private MutableComponent asNameColon(Object[] args) {
+        MutableComponent out = Component.empty();
+        out.append(rewriteArgument(args[0]));
+        out.append(Component.literal(": "));
+        out.append(rewriteArgument(args[1]));
+        changed = true;
+        return out;
+    }
+
+    private Component rewriteArgument(Object argument) {
+        return switch (argument) {
+            case Component child -> visit(child);
+            case String text -> rewriteText(text);
+            default -> Component.literal(String.valueOf(argument));
+        };
     }
 
     private MutableComponent rewriteText(String text) {
