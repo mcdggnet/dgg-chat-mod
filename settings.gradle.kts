@@ -25,5 +25,8 @@ rootProject.name = "dgg-chat-mod"
 // Platform-free: the identity SPI another mod implements. No Minecraft, no NeoForge,
 // so dggauth can compile against it without dragging the game in.
 include(":api")
+// chat-gui's rendering rules, ported. Also platform-free, which is the point: the parts
+// that have to match destiny.gg exactly are the parts worth testing without a game around.
+include(":core")
 // The mod itself: emote rendering on the client, identity relay on the server.
 include(":neoforge")
