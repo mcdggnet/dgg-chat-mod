@@ -62,11 +62,16 @@ public final class DggFont {
 
     private DggFont() {}
 
+    /**
+     * @param emoteNames every emote prefix, sorted. Held ready because tab completion asks
+     *                   for it on each keypress and a HashMap key set has no useful order.
+     */
     record Glyphs(Map<Integer, DggGlyph> byCodepoint,
                   Map<String, Integer> emoteCodepoints,
-                  Map<String, Integer> flairCodepoints) {
+                  Map<String, Integer> flairCodepoints,
+                  List<String> emoteNames) {
 
-        static final Glyphs EMPTY = new Glyphs(Map.of(), Map.of(), Map.of());
+        static final Glyphs EMPTY = new Glyphs(Map.of(), Map.of(), Map.of(), List.of());
     }
 
     /**
@@ -109,8 +114,15 @@ public final class DggFont {
             nextFlair++;
         }
 
+        // Built from the emotes that actually received a codepoint rather than from the
+        // manifest, so a manifest larger than the reserved block cannot offer completions
+        // for emotes that would not draw.
+        List<String> named = new ArrayList<>(emotes.keySet());
+        named.sort(String::compareTo);
+
         Glyphs previous = glyphs;
-        glyphs = new Glyphs(Map.copyOf(byCodepoint), Map.copyOf(emotes), Map.copyOf(flairs));
+        glyphs = new Glyphs(Map.copyOf(byCodepoint), Map.copyOf(emotes), Map.copyOf(flairs),
+                List.copyOf(named));
         // Native memory, so it does not get collected on its own. In practice this only
         // frees anything if a manifest is installed twice in one session.
         for (DggGlyph stale : previous.byCodepoint().values()) {
@@ -139,6 +151,11 @@ public final class DggFont {
 
     static Glyphs glyphs() {
         return glyphs;
+    }
+
+    /** Every drawable emote name, sorted. Empty until a manifest has loaded. */
+    public static List<String> emoteNames() {
+        return glyphs.emoteNames();
     }
 
     /** The character to put in a chat component for this emote, or null if there is none. */

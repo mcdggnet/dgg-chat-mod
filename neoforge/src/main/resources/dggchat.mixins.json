@@ -9,6 +9,7 @@
   "mixins": [],
   "client": [
     "ChatComponentMixin",
+    "ClientSuggestionProviderMixin",
     "FontSetMixin"
   ],
   "server": []
