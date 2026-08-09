@@ -75,12 +75,35 @@ class FlairCatalogueTest {
     }
 
     @Test
-    @DisplayName("flair125 publishes an all-null image and must not be assumed drawable")
+    @DisplayName("flair125 has no usable image and must not be assumed drawable")
     void flairWithoutAnImage() {
         Flair headMod = catalogue.byName("flair125").orElseThrow();
         assertFalse(headMod.hasIcon());
         assertTrue(headMod.hasColor());
         assertEquals(0xFFD88C, headMod.colorRgb(0));
+    }
+
+    @Test
+    @DisplayName("a hidden flair is dropped from the row even when it does have an icon")
+    void hiddenBeatsHavingAnIcon() {
+        Flair micro = catalogue.byName("flair17").orElseThrow();
+        assertTrue(micro.hidden());
+        assertTrue(micro.hasIcon(), "the fixture gives it one on purpose");
+        assertTrue(catalogue.icons(List.of("flair17")).isEmpty());
+    }
+
+    @Test
+    @DisplayName("icons carry a URL resolved against the manifest they were baked into")
+    void iconUrlsAreAbsolute() {
+        assertEquals("https://mcdgg.net/dggchat/flair-flair33.bbb.png",
+                catalogue.byName("flair33").orElseThrow().iconUrl());
+    }
+
+    @Test
+    @DisplayName("every visible flair in the bake is drawable; that is what icons() depends on")
+    void visibleFlairsAreDrawable() {
+        long drawable = catalogue.all().stream().filter(f -> !f.hidden() && f.hasIcon()).count();
+        assertEquals(catalogue.all().stream().filter(f -> !f.hidden()).count(), drawable);
     }
 
     @Test
@@ -90,15 +113,6 @@ class FlairCatalogueTest {
         assertEquals(0x123456, new Flair("x", "x", false, 1, "nonsense", false, null, 0, 0, 0).colorRgb(0x123456));
         assertEquals(0x112233, new Flair("x", "x", false, 1, "#123", false, null, 0, 0, 0).colorRgb(0));
         assertEquals(0x999999, new Flair("x", "x", false, 1, null, false, null, 0, 0, 0).colorRgb(0x999999));
-    }
-
-    @Test
-    @DisplayName("without the CSS, colours still work and icon order degrades to catalogue order")
-    void cssIsOptional() {
-        FlairCatalogue jsonOnly = FlairCatalogue.parse(Fixtures.FLAIRS_JSON, null);
-        assertEquals("flair33",
-                jsonOnly.usernameColorFlair(List.of("flair33", "flair7")).map(Flair::name).orElse(null));
-        assertEquals(Flair.NO_ORDER, jsonOnly.byName("flair33").orElseThrow().order());
     }
 
     @Test

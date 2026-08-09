@@ -1,92 +1,77 @@
 package net.mcdgg.chat.core;
 
 /**
- * A subset of destiny.gg's published flair list, kept in its real catalogue order.
+ * A subset of destiny.gg's flair list, in its real catalogue order, in the shape the baker
+ * emits.
+ *
+ * <p>Deliberately the baked shape rather than raw {@code flairs.json}: that is the only form
+ * the client ever sees, so a fixture in any other shape would be testing a code path nobody
+ * runs. An earlier version did exactly that, and a reader following the raw-JSON parser
+ * reasonably concluded flair icons could never render.
  *
  * <p>Order matters: {@code usernameColorFlair} filters the catalogue rather than the user's
  * features, so which of two flairs at the same priority wins is decided by which appears
  * first here. The entries chosen are the ones that actually collide — four coloured flairs
- * at priority 3, two pairs at 4 and 6, two at 1 — plus {@code flair125}, whose image entry
- * publishes null for every field.
+ * at priority 3, two of them rainbow, plus pairs at 1, 4 and 6 — together with the two real
+ * edge cases: {@code flair125}, which publishes no usable image, and {@code flair5}, which
+ * publishes an empty colour string.
  *
- * <p>Held as a fixture rather than a checked-in copy of {@code flairs.json}, so the build
- * neither redistributes destiny.gg's data nor needs the network to run its tests.
+ * <p>Held as a fixture rather than a checked-in copy of destiny.gg's data, so the build
+ * neither redistributes it nor needs the network to run its tests.
  */
 final class Fixtures {
 
     private Fixtures() {}
 
-    static final String FLAIRS_JSON = """
-            [
-              {"label":"Micro","name":"flair17","hidden":true,"priority":1,
-               "color":"#FCE205","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/micro.png","mime":"image/png","height":18,"width":20}]},
-              {"label":"Admin","name":"admin","hidden":true,"priority":1,
-               "color":"#EE1F1F","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/admin.png","mime":"image/png","height":16,"width":16}]},
-              {"label":"Tier 5","name":"flair33","hidden":false,"priority":3,
-               "color":"#eb79da","rainbowColor":true,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/t5.png","mime":"image/png","height":19,"width":18}]},
-              {"label":"Tier 5 Alt","name":"flair42","hidden":true,"priority":3,
-               "color":"#eb79da","rainbowColor":true,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/t5alt.png","mime":"image/png","height":18,"width":18}]},
-              {"label":"Tier 4","name":"flair7","hidden":false,"priority":3,
-               "color":"#FC4C02","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/t4.png","mime":"image/png","height":18,"width":13}]},
-              {"label":"Contributor","name":"flair12","hidden":false,"priority":3,
-               "color":"#E79015","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/contrib.png","mime":"image/png","height":16,"width":16}]},
-              {"label":"Tier 3","name":"flair26","hidden":false,"priority":4,
-               "color":"#DD29D2","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/t3.png","mime":"image/png","height":19,"width":18}]},
-              {"label":"Tier 3 Alt","name":"flair8","hidden":true,"priority":4,
-               "color":"#DD29D2","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/t3alt.png","mime":"image/png","height":18,"width":18}]},
-              {"label":"Tier 2","name":"flair22","hidden":false,"priority":6,
-               "color":"#2ADDC8","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/t2.png","mime":"image/png","height":19,"width":18}]},
-              {"label":"Tier 2 Alt","name":"flair1","hidden":true,"priority":6,
-               "color":"#2ADDC8","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/t2alt.png","mime":"image/png","height":18,"width":18}]},
-              {"label":"Tier 1","name":"flair13","hidden":true,"priority":7,
-               "color":"#59AEEA","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/t1.png","mime":"image/png","height":18,"width":18}]},
-              {"label":"Subscriber","name":"subscriber","hidden":true,"priority":9,
-               "color":"#59AEEA","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/subscriber.png","mime":"image/png","height":18,"width":18}]},
-              {"label":"Head Mod","name":"flair125","hidden":true,"priority":126,
-               "color":"#ffd88c","rainbowColor":false,
-               "image":[{"url":null,"name":null,"mime":null,"height":null,"width":null}]},
-              {"label":"Moderator","name":"moderator","hidden":true,"priority":127,
-               "color":"#DB4C1C","rainbowColor":false,
-               "image":[{"url":"https://cdn.destiny.gg/flairs/moderator.png","mime":"image/png","height":16,"width":16}]}
-            ]
-            """;
+    static final String BASE_URL = "https://mcdgg.net/dggchat/manifest.json";
 
-    /**
-     * The shape of the real {@code flairs.css}: {@code order} only on visible flairs,
-     * {@code display: none} on the rest, and a {@code .user.<name>} colour rule that must
-     * not be mistaken for a flair rule.
-     */
-    static final String FLAIRS_CSS = """
-            .flair.moderator { display: none !important; }
-            .user.moderator { color: #DB4C1C; }
-            .flair.flair8 { display: none !important; }
-            .flair.flair33 { background-image: url("t5.png"); height: 19px; width: 18px; order: 3; }
-            .flair.flair7 { background-image: url("t4.png"); height: 18px; width: 13px; order: 3; }
-            .flair.flair12 { background-image: url("contrib.png"); height: 16px; width: 16px; order: 3; }
-            .flair.flair26 { background-image: url("t3.png"); height: 19px; width: 18px; order: 4; }
-            .flair.flair22 { background-image: url("t2.png"); height: 19px; width: 18px; order: 6; }
-            .flair.flair17 { display: none !important; }
-            .flair.admin { display: none !important; }
-            .flair.flair42 { display: none !important; }
-            .flair.flair1 { display: none !important; }
-            .flair.flair13 { display: none !important; }
-            .flair.subscriber { display: none !important; }
-            .flair.flair125 { display: none !important; }
+    static final String MANIFEST = """
+            {
+              "version": 1,
+              "emotes": {},
+              "flairs": [
+                {"name":"flair17","label":"Micro","hidden":true,"priority":1,
+                 "color":"#FCE205","rainbowColor":false,"order":2147483647,
+                 "iconFile":"flair-flair17.aaa.png","iconWidth":20,"iconHeight":18},
+                {"name":"admin","label":"Admin","hidden":true,"priority":1,
+                 "color":"#EE1F1F","rainbowColor":false,"order":2147483647},
+                {"name":"flair33","label":"Tier 5","hidden":false,"priority":3,
+                 "color":"#eb79da","rainbowColor":true,"order":3,
+                 "iconFile":"flair-flair33.bbb.png","iconWidth":18,"iconHeight":19},
+                {"name":"flair42","label":"Tier 5 Alt","hidden":true,"priority":3,
+                 "color":"#eb79da","rainbowColor":true,"order":2147483647},
+                {"name":"flair7","label":"Tier 4","hidden":false,"priority":3,
+                 "color":"#FC4C02","rainbowColor":false,"order":3,
+                 "iconFile":"flair-flair7.ccc.png","iconWidth":13,"iconHeight":18},
+                {"name":"flair12","label":"Contributor","hidden":false,"priority":3,
+                 "color":"#E79015","rainbowColor":false,"order":3,
+                 "iconFile":"flair-flair12.ddd.png","iconWidth":16,"iconHeight":16},
+                {"name":"flair26","label":"Tier 3","hidden":false,"priority":4,
+                 "color":"#DD29D2","rainbowColor":false,"order":4,
+                 "iconFile":"flair-flair26.eee.png","iconWidth":18,"iconHeight":19},
+                {"name":"flair8","label":"Tier 3 Alt","hidden":true,"priority":4,
+                 "color":"#DD29D2","rainbowColor":false,"order":2147483647},
+                {"name":"flair22","label":"Tier 2","hidden":false,"priority":6,
+                 "color":"#2ADDC8","rainbowColor":false,"order":6,
+                 "iconFile":"flair-flair22.fff.png","iconWidth":18,"iconHeight":19},
+                {"name":"flair1","label":"Tier 2 Alt","hidden":true,"priority":6,
+                 "color":"#2ADDC8","rainbowColor":false,"order":2147483647},
+                {"name":"flair13","label":"Tier 1","hidden":true,"priority":7,
+                 "color":"#59AEEA","rainbowColor":false,"order":2147483647},
+                {"name":"subscriber","label":"Subscriber","hidden":true,"priority":9,
+                 "color":"#59AEEA","rainbowColor":false,"order":2147483647},
+                {"name":"flair124","label":"Lore Master","hidden":false,"priority":50,
+                 "color":"","rainbowColor":false,"order":50,
+                 "iconFile":"flair-flair124.ggg.png","iconWidth":18,"iconHeight":18},
+                {"name":"flair125","label":"Head Mod","hidden":true,"priority":126,
+                 "color":"#ffd88c","rainbowColor":false,"order":2147483647},
+                {"name":"moderator","label":"Moderator","hidden":true,"priority":127,
+                 "color":"#DB4C1C","rainbowColor":false,"order":2147483647}
+              ]
+            }
             """;
 
     static FlairCatalogue flairs() {
-        return FlairCatalogue.parse(FLAIRS_JSON, FLAIRS_CSS);
+        return BakeManifest.parse(MANIFEST, BASE_URL).flairs();
     }
 }
