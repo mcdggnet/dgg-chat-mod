@@ -4,7 +4,8 @@ Renders Destiny.gg chat inside Minecraft the way destiny.gg renders it: real emo
 images with animation, real flair icons, and the exact username colour a person has in
 DGG chat.
 
-**Status: design only. No code yet.** This document is the brief.
+**Status: skeleton.** The build, the identity SPI, the wire format and CI are real and
+working. No emote rendering yet. This document is the brief for the rest.
 
 Facts below about destiny.gg's data were verified against the live CDN and the
 `destinygg/chat-gui` source on 2026-08-08. Where something is an open decision it says
@@ -419,16 +420,47 @@ Follow `dggauth-proxy`: a Gradle multi-module build where the NeoForge module is
 isolated, so building the parts that do not touch Minecraft never triggers
 ModDevGradle's decompile step.
 
-| Module | Contents |
-|---|---|
-| `api` | the `DggIdentitySource` SPI and the identity record. No Minecraft, no NeoForge. |
-| `neoforge` | both halves of the mod, `side`-scoped. |
-| `baker` | the Playwright bake pipeline and its manifest writer. Not Java; runs in CI, not in the game. |
+| Module | Contents | State |
+|---|---|---|
+| `api` | the `DggIdentitySource` SPI and `DggChatIdentity`. No Minecraft, no NeoForge. | exists |
+| `neoforge` | the mod. Optional payload registration and `ServiceLoader` discovery. | skeleton |
+| `baker` | the Playwright bake pipeline and its manifest writer. Not Java; runs in CI, not in the game. | not started |
 
 Whether this should instead become another module inside `dggauth-proxy` is worth
 asking: it would share `api`, the toolchain and the release process, at the cost of
 coupling a chat cosmetic to the auth service's release cadence. Separate repos with a
 small shared API artifact is the safer default.
+
+### Building
+
+```bash
+./gradlew build          # everything, including tests
+./gradlew :api:build     # no Minecraft download, builds in seconds
+```
+
+Java 21 is fetched by the toolchain if the machine has none, so no local JDK setup is
+required. The first `:neoforge` build downloads and decompiles Minecraft and is slow;
+after that it is cached.
+
+### Releasing
+
+Tags drive versions. `git tag v0.2.0 && git push --tags` publishes `0.2.0`, whatever
+`modVersion` says in `gradle.properties`, and the `release` workflow then:
+
+1. builds and runs tests,
+2. publishes `dgg-chat-api` and `dgg-chat-neoforge` to **GitHub Packages**, so
+   `dggauth` can take the SPI as a `compileOnly` dependency,
+3. creates a **GitHub Release** with the mod jar attached.
+
+The jar on the Release page is the download for players. Not a container registry: a
+Minecraft mod is a jar you drop in a `mods` folder, and GHCR would only wrap it in an
+OCI artifact that no launcher can read. Modrinth and CurseForge are the other real
+distribution channels if this ever goes wider than the server's own players.
+
+Both workflows run on least privilege: `contents: read` by default, with the release
+job asking for `contents: write` and `packages: write` and nothing else. Publishing
+authenticates with the job-scoped `GITHUB_TOKEN`, so there is no long-lived credential
+anywhere in the repo or its settings.
 
 ---
 

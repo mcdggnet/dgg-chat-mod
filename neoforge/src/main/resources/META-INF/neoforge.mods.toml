@@ -1,0 +1,30 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "Proprietary"
+
+[[mods]]
+modId = "dggchat"
+version = "${version}"
+displayName = "DGG Chat"
+description = "Renders Destiny.gg emotes and flair in Minecraft chat."
+authors = "mcdgg"
+
+# Both halves are optional and the mod must never make a client and server
+# incompatible. IGNORE_ALL_VERSION stops the server advertising itself as
+# incompatible to clients that do not have the mod; the payloads themselves are
+# registered through PayloadRegistrar#optional() for the same reason.
+displayTest = "IGNORE_ALL_VERSION"
+
+[[dependencies.dggchat]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.dggchat]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.22)"
+ordering = "NONE"
+side = "BOTH"
