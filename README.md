@@ -18,7 +18,7 @@ manifest, chat looks exactly like vanilla chat.
 |---|---|
 | `core` | emote matching, flair resolution, username colour, ported from chat-gui. 59 tests. |
 | `api` | the identity SPI another mod implements. 4 tests. |
-| `neoforge` | the mod: optional payload, identity relay, glyph provider, chat rewrite. 14 tests. |
+| `neoforge` | the mod: optional payload, identity relay, glyph provider, chat rewrite. 15 tests. |
 | `baker` | the Playwright bake. Produces all 324 emotes and 46 flairs. |
 
 ### What was actually verified
@@ -37,10 +37,30 @@ Worth being precise, because a mod that compiles is not a mod that works.
   children.
 - **chat-gui parity** for emote matching and username colour, against expectations produced
   by running chat-gui's own code in V8.
+- **Emotes actually drawing**, in ATM10 on a live server.
 
-Not verified by running: an emote glyph being stitched into the font atlas and animated
-frame by frame. That path needs text drawn on screen in a live session. It is the riskiest
-remaining thing.
+### Three things that only showed up in a real game
+
+Each rendered identically — a hollow box — and each had a different cause.
+
+1. **Translation arguments can be bare `String`s.** Vanilla's decoration passes `Component`s,
+   which the tests covered; a server sending `{"translate":"...","with":["PEPE"]}` passes
+   strings, and the tree walk stepped straight over them.
+2. **Minecraft appends an `AllMissingGlyphProvider` catch-all to every font**, and
+   `selectProviders` walks the list per codepoint and stops at the first provider that
+   answers. A provider added *after* the catch-all is asked for nothing and then dropped as
+   unused. The emote provider now goes in front, and a check after selection turns that
+   failure into a log line instead of a screen of boxes.
+3. **Chat draws every line at the same depth**, newest first, so the last draw wins and the
+   last draw is the oldest line. Invisible in vanilla because text never overlaps; very
+   visible once emotes hang below the baseline, as an older message's emote covering the
+   newer message beneath it.
+
+The lesson worth keeping: all three were invisible to compilation, to unit tests, and to a
+dev client sitting at the main menu. What found them was `font self-check`, which measures a
+glyph's advance and logs it, and the disk cache being empty — an emote image is only fetched
+when its glyph is really baked, so an empty cache proved the renderer never reached the
+provider.
 
 ---
 

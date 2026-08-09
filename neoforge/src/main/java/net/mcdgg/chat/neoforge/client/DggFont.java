@@ -165,6 +165,18 @@ public final class DggFont {
     }
 
     /**
+     * Called once per font reload with whether the provider survived provider selection.
+     * If it did not, emotes must not be substituted: the codepoints would draw as boxes.
+     */
+    public static void onProviderSelected(boolean kept) {
+        active = kept;
+        if (!kept) {
+            LOGGER.warn("the emote provider was dropped during font selection;"
+                    + " emote names will stay as plain text");
+        }
+    }
+
+    /**
      * A reload throws away every font atlas page, so every glyph's recorded slot is stale.
      * Writing an animation frame to a page Minecraft has since reused would corrupt whatever
      * font now occupies it.

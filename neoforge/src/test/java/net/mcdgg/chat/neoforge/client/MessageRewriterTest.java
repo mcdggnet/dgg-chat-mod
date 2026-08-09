@@ -140,6 +140,18 @@ class MessageRewriterTest {
     }
 
     @Test
+    @DisplayName("a translation argument can be a bare String, and several servers send them")
+    void stringArgumentsAreRewritten() {
+        Component decorated = Component.translatable("chat.type.text", "Steve", "look PEPE");
+        Component out = new MessageRewriter(matcher(), null, 0L).rewrite(decorated);
+        assertEquals("look <PEPE>", render((Component) translatableArgs(out)[1]));
+    }
+
+    private static Object[] translatableArgs(Component component) {
+        return ((net.minecraft.network.chat.contents.TranslatableContents) component.getContents()).getArgs();
+    }
+
+    @Test
     void siblingsAreRewrittenToo() {
         Component message = Component.literal("a PEPE ")
                 .append(Component.literal("and Askers here"));

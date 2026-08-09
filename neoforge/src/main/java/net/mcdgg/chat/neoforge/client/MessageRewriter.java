@@ -88,7 +88,14 @@ final class MessageRewriter {
             Object[] args = translatable.getArgs();
             Object[] rewritten = new Object[args.length];
             for (int i = 0; i < args.length; i++) {
-                rewritten[i] = args[i] instanceof Component child ? visit(child) : args[i];
+                // Vanilla's decoration passes Components, but a plain String is equally
+                // legal in a translation argument and several server chat plugins send
+                // them. Skipping those leaves the message body untouched.
+                rewritten[i] = switch (args[i]) {
+                    case Component child -> visit(child);
+                    case String text -> rewriteText(text);
+                    default -> args[i];
+                };
             }
             out = MutableComponent.create(new TranslatableContents(
                     translatable.getKey(), translatable.getFallback(), rewritten));

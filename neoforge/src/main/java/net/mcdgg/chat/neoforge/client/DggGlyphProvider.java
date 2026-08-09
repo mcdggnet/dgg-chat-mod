@@ -18,7 +18,7 @@ import it.unimi.dsi.fastutil.ints.IntSets;
  * up front means the font survives a cold start, and the manifest can arrive whenever it
  * arrives without forcing a resource reload on a pack where that costs several seconds.
  */
-final class DggGlyphProvider implements GlyphProvider {
+public final class DggGlyphProvider implements GlyphProvider {
 
     /** Emotes. 321 today; the room is free. */
     static final int EMOTE_FIRST = 0xE000;
@@ -29,7 +29,7 @@ final class DggGlyphProvider implements GlyphProvider {
 
     private static final IntSet SUPPORTED = buildSupported();
 
-    DggGlyphProvider() {}
+    public DggGlyphProvider() {}
 
     private static IntSet buildSupported() {
         IntOpenHashSet set = new IntOpenHashSet(
