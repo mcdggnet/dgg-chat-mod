@@ -25,9 +25,23 @@ public final class RainbowText {
 
     private RainbowText() {}
 
+    /**
+     * How much of the hue cycle a name spans at any instant.
+     *
+     * <p>Not 1.0, although the site's CSS nominally puts one full cycle across the
+     * element: a browser shades smoothly through every pixel of every glyph, so the
+     * full spectrum reads as a scrolling sheen. Minecraft gives each letter a single
+     * flat colour, and the same full-spectrum mapping reads as individually-coloured
+     * candy letters instead. A narrower window keeps adjacent letters in nearby hues,
+     * so what the eye sees is one coherent band sweeping across the name - which is
+     * what the site effect looks like, even though it is not what its CSS says.
+     */
+    private static final float NAME_SPAN = 0.3f;
+
     /** Style colour for character {@code index} of a rainbow name {@code length} long. */
     public static int encode(int index, int length) {
-        int position = length <= 1 ? 0 : Math.clamp(Math.round(index * 255f / (length - 1)), 0, 255);
+        int position = length <= 1 ? 0
+                : Math.clamp(Math.round(index * NAME_SPAN * 255f / (length - 1)), 0, 255);
         return MARKER_RED | position << 8 | MARKER_BLUE;
     }
 
