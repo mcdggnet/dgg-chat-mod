@@ -48,11 +48,21 @@ jobs:
       # What people actually download. Releases, not a container registry: a mod is a
       # jar you drop in a mods folder, and GHCR would only wrap it in an OCI artifact
       # that no Minecraft launcher can read.
+      # Idempotent on purpose: a release may already exist when the tag was cut by
+      # hand with `gh release create` (which is also what pushes the tag that
+      # triggered this run). In that case keep the release and swap in the CI-built
+      # jar, which is the canonical artifact. v0.1.0 and v0.1.1 both failed here
+      # for exactly this reason.
       - name: Publish the Release
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes \
-            neoforge/build/libs/DGGChat-NeoForge-${{ steps.v.outputs.version }}.jar
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --clobber \
+              neoforge/build/libs/DGGChat-NeoForge-${{ steps.v.outputs.version }}.jar
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              neoforge/build/libs/DGGChat-NeoForge-${{ steps.v.outputs.version }}.jar
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
