@@ -61,9 +61,18 @@ public final class TabListNames {
                 out.append(Component.literal(glyph).setStyle(MessageRewriter.EMOTE_STYLE));
             }
         }
-        MutableComponent named = Component.literal(name);
-        colour.map(f -> f.colorRgb(0xFFFFFF))
-                .ifPresent(rgb -> named.setStyle(Style.EMPTY.withColor(TextColor.fromRgb(rgb))));
+        MutableComponent named;
+        if (colour.isPresent() && colour.get().rainbowColor()) {
+            // Sentinel-coloured like chat; FontMixin animates it at draw time. The
+            // previous code fell through to colorRgb's white default here, which is why
+            // rainbow users had colourless tab entries.
+            named = MessageRewriter.rainbowName(name);
+        } else {
+            MutableComponent plain = Component.literal(name);
+            colour.map(f -> f.colorRgb(0xFFFFFF))
+                    .ifPresent(rgb -> plain.setStyle(Style.EMPTY.withColor(TextColor.fromRgb(rgb))));
+            named = plain;
+        }
         return out.append(named);
     }
 }

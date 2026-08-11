@@ -191,10 +191,11 @@ final class MessageRewriter {
      * The rainbow flairs are a gradient scrolling across the name, and Minecraft colours per
      * character, so each character samples that same ramp at its own position.
      *
-     * <p>Sampled once, as the message arrives, rather than every frame. A chat line's wrapped
-     * form is built on arrival and never rebuilt, so an animated gradient would mean
-     * re-wrapping the whole chat buffer every frame on a pack that cannot spare it. The
-     * gradient is there; it just does not scroll.
+     * <p>The colours here are not colours: a chat line's wrapped form is built on arrival
+     * and never rebuilt, so a live gradient cannot be baked in. Each character instead
+     * carries a {@link RainbowText} sentinel encoding its position, and {@code FontMixin}
+     * resolves it against the clock at draw time, every frame. That is what makes the
+     * gradient actually scroll without ever re-wrapping the chat buffer.
      */
     private MutableComponent styledName(String name) {
         if (sender.colour() == null) {
@@ -204,11 +205,16 @@ final class MessageRewriter {
             return Component.literal(name).setStyle(
                     Style.EMPTY.withColor(TextColor.fromRgb(sender.colour().colorRgb(0xFFFFFF))));
         }
+        return rainbowName(name);
+    }
+
+    /** Shared with the tab list, which needs the identical sentinel treatment. */
+    static MutableComponent rainbowName(String name) {
         MutableComponent out = Component.empty();
         int length = name.length();
         for (int i = 0; i < length; i++) {
             out.append(Component.literal(String.valueOf(name.charAt(i))).setStyle(
-                    Style.EMPTY.withColor(TextColor.fromRgb(Rainbow.rgbForCharacter(i, length, now)))));
+                    Style.EMPTY.withColor(TextColor.fromRgb(RainbowText.encode(i, length)))));
         }
         return out;
     }
