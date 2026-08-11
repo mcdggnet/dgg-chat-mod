@@ -142,7 +142,11 @@ final class MessageRewriter {
      */
     private MutableComponent asNameColon(Object[] args) {
         MutableComponent out = Component.empty();
-        out.append(rewriteArgument(args[0]));
+        // Bold on the name node for the same reason as styledName: the site bolds every
+        // username, and a name with no server-side style (unlinked, tier 0) otherwise
+        // arrives plain. Children that carry their own bold keep it; nothing hoists onto
+        // the colon or the body, because siblings inherit from the parent, not each other.
+        out.append(rewriteArgument(args[0]).copy().withStyle(style -> style.withBold(true)));
         out.append(Component.literal(": "));
         out.append(rewriteArgument(args[1]));
         changed = true;
@@ -198,14 +202,20 @@ final class MessageRewriter {
      * gradient actually scroll without ever re-wrapping the chat buffer.
      */
     private MutableComponent styledName(String name) {
+        MutableComponent styled;
         if (sender.colour() == null) {
-            return Component.literal(name);
-        }
-        if (!sender.colour().rainbowColor()) {
-            return Component.literal(name).setStyle(
+            styled = Component.literal(name);
+        } else if (!sender.colour().rainbowColor()) {
+            styled = Component.literal(name).setStyle(
                     Style.EMPTY.withColor(TextColor.fromRgb(sender.colour().colorRgb(0xFFFFFF))));
+        } else {
+            styled = rainbowName(name);
         }
-        return rainbowName(name);
+        // destiny.gg renders every username bold, colourless ones included. Bold sits on
+        // the name node only, so per-character rainbow children inherit it while the
+        // colon and message body stay regular weight. The icons never pass through here,
+        // which matters: bold would smear the glyph textures sideways.
+        return styled.withStyle(style -> style.withBold(true));
     }
 
     /** Shared with the tab list, which needs the identical sentinel treatment. */
