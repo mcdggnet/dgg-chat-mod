@@ -11,6 +11,7 @@
     "ChatComponentMixin",
     "ClientSuggestionProviderMixin",
     "FontMixin",
+    "GuiMixin",
     "FontSetMixin",
     "PlayerTabOverlayMixin"
   ],
