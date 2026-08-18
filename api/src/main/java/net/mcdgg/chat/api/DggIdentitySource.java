@@ -2,6 +2,7 @@ package net.mcdgg.chat.api;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * Supplies Destiny.gg identities for online players.
@@ -37,5 +38,23 @@ public interface DggIdentitySource {
      */
     default int priority() {
         return 0;
+    }
+
+    /**
+     * Registers the relay's change callback: the "signals a change" half of the
+     * {@link #identityFor} contract. Fire it with a player's UUID whenever their
+     * identity changes after the initial ask — a lookup that was still in flight
+     * resolving, or a player linking mid-session — and the relay re-asks
+     * {@code identityFor} for that player and rebroadcasts the answer.
+     *
+     * <p>Called once per source when the server half starts, before any lookups. Fire
+     * the callback from the server thread; it is cheap (the relay schedules its own
+     * re-query, it does not resolve inline) and safe to fire spuriously or for a
+     * player who has since disconnected.
+     *
+     * <p>The default is a no-op so existing sources stay source- and binary-compatible:
+     * a source that never signals simply leaves the relay to its own retry schedule.
+     */
+    default void addChangeListener(Consumer<UUID> listener) {
     }
 }

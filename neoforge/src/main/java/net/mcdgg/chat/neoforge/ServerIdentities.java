@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -69,6 +70,27 @@ final class ServerIdentities {
         RETRIES.removeIf(retry -> retry.player().equals(uuid));
     }
 
+    /**
+     * A source signalled that this player's identity changed after the initial ask: a
+     * lookup that was in flight at join resolving, or a player linking mid-session.
+     * Re-query and rebroadcast, so the change propagates now rather than dying against
+     * the retry ladder above (which gives up ~42s after join).
+     *
+     * <p>Registered with every source via {@link IdentitySources#addChangeListener}.
+     * Safe from any thread: {@link #resolve} hands its result to the server thread
+     * before anything shared is touched, and a signal for a player who already left is
+     * discarded by {@link #accept}'s online check.
+     */
+    static void onIdentityChanged(UUID uuid) {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) {
+            return;
+        }
+        // Past the retry ladder on purpose: the signal means the answer is ready, so an
+        // empty result here is a real "not linked", not a "not yet".
+        resolve(server, uuid, RETRY_TICKS.length);
+    }
+
     static void onServerTick(ServerTickEvent.Post event) {
         tick++;
         if (RETRIES.isEmpty()) {
@@ -106,6 +128,14 @@ final class ServerIdentities {
                                Optional<DggChatIdentity> identity, Throwable error) {
         if (error != null) {
             LOGGER.warn("identity lookup failed for {}; that player renders plain", uuid, error);
+            return;
+        }
+        if (server.getPlayerList().getPlayer(uuid) == null) {
+            // The lookup outlived the player. Cache nothing, and drop whatever an
+            // earlier attempt cached: onPlayerLeave already ran, so anything put here
+            // now would sit in KNOWN (and be replayed to every joiner) until restart.
+            KNOWN.remove(uuid);
+            RETRIES.removeIf(retry -> retry.player().equals(uuid));
             return;
         }
         if (identity != null && identity.isPresent()) {

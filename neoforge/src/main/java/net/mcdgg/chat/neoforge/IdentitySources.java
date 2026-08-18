@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -51,6 +52,24 @@ final class IdentitySources {
 
     static int count() {
         return SOURCES.size();
+    }
+
+    /**
+     * Hands the relay's change callback to every source. A source that cannot signal
+     * keeps the interface's no-op default, and a source that throws here is skipped:
+     * its mid-session changes then rely on the relay's own retry schedule, which is
+     * the pre-signal behaviour, not a failure.
+     */
+    static void addChangeListener(Consumer<UUID> listener) {
+        for (DggIdentitySource source : SOURCES) {
+            try {
+                source.addChangeListener(listener);
+            } catch (RuntimeException e) {
+                LOGGER.warn("identity source {} rejected the change listener; "
+                        + "mid-session identity changes from it will wait on retries",
+                        source.getClass().getName(), e);
+            }
+        }
     }
 
     /** First source with an answer, highest priority first; empty when none has one. */

@@ -29,6 +29,11 @@ public final class DggChatMod {
         NeoForge.EVENT_BUS.addListener(ServerIdentities::onPlayerLeave);
         NeoForge.EVENT_BUS.addListener(ServerIdentities::onServerTick);
 
+        // A source resolving identities asynchronously (dggauth) signals here when an
+        // answer lands after the initial ask, so a mid-session /link propagates at once
+        // instead of dying against the relay's ~42s retry ladder.
+        IdentitySources.addChangeListener(ServerIdentities::onIdentityChanged);
+
         LOGGER.info("DGG Chat loading; {} identity source(s) available", IdentitySources.count());
     }
 }
