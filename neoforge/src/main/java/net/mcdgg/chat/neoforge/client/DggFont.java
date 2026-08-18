@@ -125,8 +125,24 @@ public final class DggFont {
                 List.copyOf(named));
         // Native memory, so it does not get collected on its own. In practice this only
         // frees anything if a manifest is installed twice in one session.
-        for (DggGlyph stale : previous.byCodepoint().values()) {
-            stale.releaseImage();
+        //
+        // The release is deferred to the render thread rather than done here: install()
+        // runs on the manifest-loader thread, and the render thread may at this very
+        // moment be inside animate() uploading from one of these images — closing it
+        // out from under that upload is a native use-after-free. Queued on the render
+        // thread, the close runs between frames, strictly after any in-flight upload.
+        // Filtered to glyphs actually holding an image, so a table that never loaded
+        // anything (including in unit tests, with no Minecraft instance) frees nothing
+        // and schedules nothing.
+        List<DggGlyph> stale = previous.byCodepoint().values().stream()
+                .filter(DggGlyph::holdsImage)
+                .toList();
+        if (!stale.isEmpty()) {
+            net.minecraft.client.Minecraft.getInstance().execute(() -> {
+                for (DggGlyph glyph : stale) {
+                    glyph.releaseImage();
+                }
+            });
         }
     }
 

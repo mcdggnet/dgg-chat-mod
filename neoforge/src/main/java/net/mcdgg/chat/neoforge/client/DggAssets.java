@@ -80,7 +80,22 @@ final class DggAssets {
 
     private static void loadManifest(AssetCache cache, String url) {
         try {
-            BakeManifest manifest = BakeManifest.parse(cache.fetchText(url), url);
+            // Parse before the cache persists, not after. BakeManifest.parse throwing on
+            // an unreadable manifest (a version from the future, garbage from a captive
+            // portal) is the documented signal to keep using the cached copy — which only
+            // works if the download has not already overwritten it. The check hands the
+            // rejection to AssetCache, which then serves the last-good bytes as stale.
+            BakeManifest[] fresh = new BakeManifest[1];
+            AssetCache.Result result = cache.fetch(url, bytes ->
+                    fresh[0] = BakeManifest.parse(
+                            new String(bytes, java.nio.charset.StandardCharsets.UTF_8), url));
+            // fresh[0] is set only when this call downloaded a parseable manifest;
+            // otherwise the bytes are the cached copy and get parsed here.
+            BakeManifest manifest = fresh[0] != null ? fresh[0] : BakeManifest.parse(result.text(), url);
+            if (result.stale()) {
+                LOGGER.info("using the cached bake: the manifest at {} is unreachable "
+                        + "or not readable by this build", url);
+            }
             DggFont.install(manifest);
             flairs = manifest.flairs();
             matcher = EmoteMatcher.of(manifest.prefixes());

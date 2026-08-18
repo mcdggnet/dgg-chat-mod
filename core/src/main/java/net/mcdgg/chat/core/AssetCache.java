@@ -52,6 +52,25 @@ public final class AssetCache {
      *                     something already cached succeeds and reports {@code stale}
      */
     public Result fetch(String url) throws IOException {
+        return fetch(url, null);
+    }
+
+    /**
+     * Like {@link #fetch(String)}, but freshly downloaded content must pass {@code check}
+     * before it replaces the cached copy.
+     *
+     * <p>This exists for the manifest, whose parser rejects versions this build does not
+     * understand — and that rejection is only survivable if the last-good copy is still on
+     * disk. An earlier version wrote the download before the caller ever parsed it, so one
+     * format bump destroyed the cached bake and old clients rendered plain forever. A
+     * rejected download is treated exactly like a failed revalidation: the cached bytes
+     * come back marked {@code stale}. With nothing cached, the rejection propagates.
+     *
+     * <p>The check runs only on bytes fetched from the network this call; a cached or
+     * 304-revalidated copy is returned as-is, since it passed when it was stored (or
+     * predates checking, which the caller's own parse still catches).
+     */
+    public Result fetch(String url, FreshContentCheck check) throws IOException {
         Path body = pathFor(url, ".bin");
         Path meta = pathFor(url, ".meta");
         boolean cached = Files.isRegularFile(body);
@@ -80,6 +99,22 @@ public final class AssetCache {
             }
             if (status / 100 == 2) {
                 byte[] bytes = response.body();
+                if (check != null) {
+                    try {
+                        check.check(bytes);
+                    } catch (Exception rejected) {
+                        // The download is unusable to this build. Keep the last-good
+                        // copy on disk and serve it, exactly like a failed
+                        // revalidation; only with nothing cached does this propagate.
+                        if (cached) {
+                            touch(body);
+                            return new Result(Files.readAllBytes(body), false, true);
+                        }
+                        throw rejected instanceof IOException io
+                                ? io
+                                : new IOException("rejected fresh content for " + url, rejected);
+                    }
+                }
                 writeAtomically(body, bytes);
                 response.headers().firstValue("ETag")
                         .ifPresentOrElse(tag -> writeQuietly(meta, tag), () -> deleteQuietly(meta));
@@ -192,6 +227,15 @@ public final class AssetCache {
         } catch (IOException e) {
             // Only costs an earlier revalidation next time.
         }
+    }
+
+    /**
+     * Gate that freshly downloaded content must pass before it replaces the cached copy.
+     * Throwing anything rejects the download; see {@link #fetch(String, FreshContentCheck)}.
+     */
+    @FunctionalInterface
+    public interface FreshContentCheck {
+        void check(byte[] bytes) throws Exception;
     }
 
     /**

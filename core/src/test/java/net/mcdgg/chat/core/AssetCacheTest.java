@@ -152,4 +152,36 @@ class AssetCacheTest {
         AssetCache cache = new AssetCache(cacheDir, Duration.ofHours(1));
         assertEquals("first", cache.fetchText(url()));
     }
+
+    @Test
+    @DisplayName("rejected fresh content must not destroy the last-good cached copy")
+    void rejectedDownloadKeepsTheCachedCopy() throws IOException {
+        AssetCache cache = new AssetCache(cacheDir, Duration.ZERO);
+        assertEquals("first", cache.fetch(url()).text());
+
+        // The server now serves something this client cannot read (a manifest
+        // format bump, say). The check throws; the cached copy must survive.
+        body = "unreadable-v2";
+        etag = "\"v2\"";
+        AssetCache.Result result = cache.fetch(url(), bytes -> {
+            if (new String(bytes, StandardCharsets.UTF_8).startsWith("unreadable")) {
+                throw new IllegalArgumentException("version from the future");
+            }
+        });
+        assertEquals("first", result.text(), "the cached copy is the one served");
+        assertTrue(result.stale());
+        assertFalse(result.fresh());
+
+        assertEquals("first", new String(cache.cached(url()).orElseThrow(), StandardCharsets.UTF_8),
+                "the cached copy is still on disk, not overwritten by the rejected body");
+    }
+
+    @Test
+    void rejectedDownloadWithNothingCachedPropagates() {
+        AssetCache cache = new AssetCache(cacheDir, Duration.ZERO);
+        assertThrows(IOException.class, () -> cache.fetch(url(), bytes -> {
+            throw new IllegalArgumentException("unreadable");
+        }));
+        assertTrue(cache.cached(url()).isEmpty(), "the rejected body must not be cached");
+    }
 }

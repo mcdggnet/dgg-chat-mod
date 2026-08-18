@@ -148,8 +148,19 @@ final class DggGlyph implements GlyphInfo {
     void attach(NativeImage decoded) {
         this.image = decoded;
         this.loading = false;
-        // Force the next animate() to write, even if it lands on the tile already shown.
-        this.uploadedTile = -1;
+        if (decoded != null) {
+            // Force the next animate() to write, even if it lands on the tile already
+            // shown. uploadedTile is render-thread state and this is the loader thread,
+            // so the write hops rather than racing bake()'s upload(); the frame of
+            // delay costs nothing because animate() cannot draw before image is set,
+            // and it reads image through the volatile.
+            net.minecraft.client.Minecraft.getInstance().execute(() -> this.uploadedTile = -1);
+        }
+    }
+
+    /** Whether this glyph holds a decoded image, i.e. native memory worth releasing. */
+    boolean holdsImage() {
+        return image != null;
     }
 
     String url() {
@@ -210,8 +221,18 @@ final class DggGlyph implements GlyphInfo {
         }
         int previous = GlStateManager._getInteger(GL11.GL_TEXTURE_BINDING_2D);
         GlStateManager._bindTexture(atlasTexture);
-        current.upload(0, atlasX, atlasY, 0, tile * tileHeight, tileWidth, tileHeight, false, false);
-        GlStateManager._bindTexture(previous);
+        try {
+            current.upload(0, atlasX, atlasY, 0, tile * tileHeight, tileWidth, tileHeight, false, false);
+        } catch (IllegalStateException closed) {
+            // The image was closed under us. releaseImage() runs on this thread now, so
+            // this should be unreachable — but a throw here escapes into
+            // RenderFrameEvent and takes the whole client down, which is never a fair
+            // price for one emote. Drop the image; the atlas keeps its last frame.
+            image = null;
+            return false;
+        } finally {
+            GlStateManager._bindTexture(previous);
+        }
         uploadedTile = tile;
         return true;
     }
@@ -226,6 +247,12 @@ final class DggGlyph implements GlyphInfo {
         uploadedTile = -1;
     }
 
+    /**
+     * Frees the decoded strip. Render thread only: animate() uploads from this image on
+     * the render thread, and closing native memory mid-upload is a use-after-free, so
+     * the close must be serialized behind any in-flight frame. {@link DggFont#install}
+     * gets there by queueing this through {@code Minecraft.getInstance().execute}.
+     */
     void releaseImage() {
         NativeImage held = image;
         image = null;
