@@ -1,7 +1,10 @@
 pluginManagement {
     repositories {
+        // Loom and the 26.2 identity mapping the Fabric module builds against.
+        mavenLocal()
         gradlePluginPortal()
         maven("https://maven.neoforged.net/releases")
+        maven("https://maven.fabricmc.net/") { name = "Fabric" }
     }
 }
 // NeoForge 21.1 / MC 1.21.1 must be built with a Java 21 toolchain, and Fedora ships no
@@ -41,3 +44,8 @@ project(":dgg-chat-core").projectDir = file("core")
 
 // The mod itself: emote rendering on the client, identity relay on the server.
 include(":neoforge")
+
+// The same mod for Fabric 26.x servers and clients (the Soul Link server and the
+// Fabric packs). Shares :dgg-chat-api and :dgg-chat-core; only the platform glue and
+// the mixins differ.
+include(":fabric")

@@ -19,7 +19,9 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: |
+            25
+            21
 
       - uses: gradle/actions/setup-gradle@v6
 
@@ -33,6 +35,11 @@ jobs:
       - name: Version from tag
         id: v
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Bootstrap 26.2 mappings
+        run: |
+          ./gradlew :fabric:build --no-daemon -q || true
+          bash scripts/setup-262-mappings.sh
 
       - name: Build
         run: ./gradlew build -PmodVersion=${{ steps.v.outputs.version }} --stacktrace
@@ -55,14 +62,15 @@ jobs:
       # for exactly this reason.
       - name: Publish the Release
         run: |
+          jars="neoforge/build/libs/DGGChat-NeoForge-${{ steps.v.outputs.version }}.jar
+                fabric/build/libs/DGGChat-Fabric-${{ steps.v.outputs.version }}.jar"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" --clobber \
-              neoforge/build/libs/DGGChat-NeoForge-${{ steps.v.outputs.version }}.jar
+            gh release upload "$GITHUB_REF_NAME" --clobber $jars
           else
             gh release create "$GITHUB_REF_NAME" \
               --title "$GITHUB_REF_NAME" \
               --generate-notes \
-              neoforge/build/libs/DGGChat-NeoForge-${{ steps.v.outputs.version }}.jar
+              $jars
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

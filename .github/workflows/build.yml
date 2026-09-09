@@ -21,10 +21,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Two JDKs: NeoForge 1.21.1 builds on 21, the Fabric 26.2 module on 25. Gradle
+      # finds both through the JAVA_HOME_*_X64 variables setup-java exports.
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: |
+            25
+            21
 
       - uses: gradle/actions/setup-gradle@v6
 
@@ -38,11 +42,27 @@ jobs:
           key: neoform-${{ runner.os }}-${{ hashFiles('neoforge/build.gradle.kts') }}
           restore-keys: neoform-${{ runner.os }}-
 
+      # 26.2 publishes no Mojang mappings and its jar is unobfuscated, so the Fabric
+      # module builds against an identity mapping generated from the jar Loom caches.
+      # The first build fails at the mappings step but leaves the jar behind; the
+      # script turns it into the mapping; the second build works.
+      - name: Bootstrap 26.2 mappings
+        run: |
+          ./gradlew :fabric:build --no-daemon -q || true
+          bash scripts/setup-262-mappings.sh
+
       - run: ./gradlew build --stacktrace
 
-      - name: Upload the mod jar
+      - name: Upload the NeoForge jar
         uses: actions/upload-artifact@v7
         with:
           name: DGGChat-NeoForge
           path: neoforge/build/libs/*.jar
+          if-no-files-found: error
+
+      - name: Upload the Fabric jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: DGGChat-Fabric
+          path: fabric/build/libs/*.jar
           if-no-files-found: error
