@@ -21,14 +21,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Two JDKs: NeoForge 1.21.1 builds on 21, the Fabric 26.2 module on 25. Gradle
-      # finds both through the JAVA_HOME_*_X64 variables setup-java exports.
+      # Two JDKs: NeoForge 1.21.1 builds on 21, the Fabric 26.2 module on 25, and Loom
+      # 1.18 needs Gradle itself on 25, so 25 is listed last (setup-java makes the last
+      # one JAVA_HOME). gradle.properties names setup-java's variables as toolchains.
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: |
-            25
             21
+            25
 
       - uses: gradle/actions/setup-gradle@v6
 
