@@ -1,8 +1,6 @@
 package net.mcdgg.chat.fabric.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTexture;
 import net.mcdgg.chat.core.AssetCache;
 import net.mcdgg.chat.fabric.DggChatFabric;
 import org.slf4j.Logger;
@@ -140,10 +138,10 @@ public final class EmoteTextures {
     }
 
     /** Writes transparent pixels into a freshly stitched slot, which is otherwise garbage. */
-    static void uploadBlank(GpuTexture texture, int x, int y, int width, int height) {
+    static void uploadBlank(AtlasPage page, int x, int y, int width, int height) {
         // calloc'd, so every pixel is already transparent black.
         try (NativeImage blank = new NativeImage(NativeImage.Format.RGBA, width, height, true)) {
-            RenderSystem.getDevice().createCommandEncoder().writeToTexture(texture, blank, 0, 0, x, y);
+            page.write(blank, x, y);
         }
     }
 }

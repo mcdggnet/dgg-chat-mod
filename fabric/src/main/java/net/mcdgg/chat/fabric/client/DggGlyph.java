@@ -4,8 +4,6 @@ import com.mojang.blaze3d.font.GlyphBitmap;
 import com.mojang.blaze3d.font.GlyphInfo;
 import com.mojang.blaze3d.font.UnbakedGlyph;
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTexture;
 import net.mcdgg.chat.core.BakeManifest;
 import net.mcdgg.chat.core.Flair;
 import net.minecraft.client.gui.font.glyphs.BakedGlyph;
@@ -18,9 +16,9 @@ import net.minecraft.client.gui.font.glyphs.BakedGlyph;
  * once when the message arrives and never rebuilt. Changing what the texture contains is
  * the only thing that reaches an already-wrapped line.
  *
- * <p>26.2 hands the atlas page to {@link GlyphBitmap#upload(int, int, GpuTexture)} rather
- * than leaving it bound in GL, and texture writes go through the render device's command
- * encoder, which writes a whole {@link NativeImage} at an offset. So the strip is split into
+ * <p>Since 26.2 the atlas page is handed to {@link GlyphBitmap#upload} rather than left
+ * bound in GL (an {@link AtlasPage} here), and texture writes go through the render
+ * device's command encoder, which writes a whole {@link NativeImage} at an offset. So the strip is split into
  * one image per tile when it decodes, and a frame is one {@code writeToTexture} of that tile.
  */
 final class DggGlyph implements UnbakedGlyph, GlyphInfo {
@@ -47,7 +45,7 @@ final class DggGlyph implements UnbakedGlyph, GlyphInfo {
     private volatile boolean loading;
 
     /** Render thread only, all four. */
-    private GpuTexture atlasTexture;
+    private AtlasPage atlasPage;
     private int atlasX;
     private int atlasY;
     private int uploadedTile = -1;
@@ -117,7 +115,7 @@ final class DggGlyph implements UnbakedGlyph, GlyphInfo {
     @Override
     public BakedGlyph bake(UnbakedGlyph.Stitcher stitcher) {
         EmoteTextures.request(this);
-        return stitcher.stitch(this, new GlyphBitmap() {
+        return stitcher.stitch(this, new AtlasPage.Bitmap() {
             @Override
             public int getPixelWidth() {
                 return tileWidth;
@@ -149,15 +147,15 @@ final class DggGlyph implements UnbakedGlyph, GlyphInfo {
             }
 
             @Override
-            public void upload(int x, int y, GpuTexture texture) {
-                atlasTexture = texture;
+            void upload(int x, int y, AtlasPage page) {
+                atlasPage = page;
                 atlasX = x;
                 atlasY = y;
                 uploadedTile = -1;
                 // The slot is uninitialised GPU memory until something writes to it, so it
                 // gets a frame now whether or not the download has landed.
                 if (!uploadTile(0)) {
-                    EmoteTextures.uploadBlank(texture, x, y, tileWidth, tileHeight);
+                    EmoteTextures.uploadBlank(page, x, y, tileWidth, tileHeight);
                 }
                 EmoteTextures.track(DggGlyph.this);
             }
@@ -214,10 +212,10 @@ final class DggGlyph implements UnbakedGlyph, GlyphInfo {
 
     /** Render thread. Writes the current frame into the atlas if it has changed. */
     void animate(long nowMs) {
-        if (atlasTexture == null || tiles == null) {
+        if (atlasPage == null || tiles == null) {
             return;
         }
-        if (atlasTexture.isClosed()) {
+        if (atlasPage.isClosed()) {
             // The page went away under us (a reload this mod did not see). Writing to a
             // closed texture throws, and a throw here would take the frame down.
             detach();
@@ -242,12 +240,11 @@ final class DggGlyph implements UnbakedGlyph, GlyphInfo {
 
     private boolean uploadTile(int tile) {
         NativeImage[] current = tiles;
-        if (current == null || atlasTexture == null || tile < 0 || tile >= current.length) {
+        if (current == null || atlasPage == null || tile < 0 || tile >= current.length) {
             return false;
         }
         try {
-            RenderSystem.getDevice().createCommandEncoder()
-                    .writeToTexture(atlasTexture, current[tile], 0, 0, atlasX, atlasY);
+            atlasPage.write(current[tile], atlasX, atlasY);
         } catch (IllegalStateException closed) {
             // The image was closed under us. releaseImage() runs on this thread now, so
             // this should be unreachable, but a throw here escapes into the frame and
@@ -266,7 +263,7 @@ final class DggGlyph implements UnbakedGlyph, GlyphInfo {
      * Minecraft has since put in its place.
      */
     void detach() {
-        atlasTexture = null;
+        atlasPage = null;
         uploadedTile = -1;
     }
 
