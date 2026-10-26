@@ -36,13 +36,17 @@ jobs:
         id: v
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Bootstrap 26.2 mappings
+      - name: Bootstrap 26.x mappings
         run: |
-          ./gradlew :fabric:build --no-daemon -q || true
-          bash scripts/setup-262-mappings.sh
+          for mc in 26.2 26.3; do
+            ./gradlew :fabric:build -Pmc=$mc --no-daemon -q || true
+            bash scripts/setup-262-mappings.sh $mc
+          done
 
       - name: Build
-        run: ./gradlew build -PmodVersion=${{ steps.v.outputs.version }} --stacktrace
+        run: |
+          ./gradlew build -PmodVersion=${{ steps.v.outputs.version }} --stacktrace
+          ./gradlew :fabric:build -Pmc=26.3 -PmodVersion=${{ steps.v.outputs.version }} --stacktrace
 
       # The api artifact, so dggauth can compile against the SPI as compileOnly.
       # GITHUB_TOKEN is scoped to this repo and expires with the job.
@@ -63,7 +67,8 @@ jobs:
       - name: Publish the Release
         run: |
           jars="neoforge/build/libs/DGGChat-NeoForge-${{ steps.v.outputs.version }}.jar
-                fabric/build/libs/DGGChat-Fabric-${{ steps.v.outputs.version }}.jar"
+                fabric/build/libs/DGGChat-Fabric-${{ steps.v.outputs.version }}.jar
+                fabric/build/mc26.3/libs/DGGChat-Fabric-${{ steps.v.outputs.version }}+26.3.jar"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" --clobber $jars
           else

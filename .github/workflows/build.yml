@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Two JDKs: NeoForge 1.21.1 builds on 21, the Fabric 26.2 module on 25, and Loom
+      # Two JDKs: NeoForge 1.21.1 builds on 21, the Fabric 26.x module on 25, and Loom
       # 1.18 needs Gradle itself on 25, so 25 is listed last (setup-java makes the last
       # one JAVA_HOME). gradle.properties names setup-java's variables as toolchains.
       - uses: actions/setup-java@v5
@@ -43,16 +43,22 @@ jobs:
           key: neoform-${{ runner.os }}-${{ hashFiles('neoforge/build.gradle.kts') }}
           restore-keys: neoform-${{ runner.os }}-
 
-      # 26.2 publishes no Mojang mappings and its jar is unobfuscated, so the Fabric
+      # 26.x publishes no Mojang mappings and its jars are unobfuscated, so the Fabric
       # module builds against an identity mapping generated from the jar Loom caches.
       # The first build fails at the mappings step but leaves the jar behind; the
-      # script turns it into the mapping; the second build works.
-      - name: Bootstrap 26.2 mappings
+      # script turns it into the mapping; the second build works. Once per Minecraft
+      # version the module builds for (-Pmc, see fabric/build.gradle.kts).
+      - name: Bootstrap 26.x mappings
         run: |
-          ./gradlew :fabric:build --no-daemon -q || true
-          bash scripts/setup-262-mappings.sh
+          for mc in 26.2 26.3; do
+            ./gradlew :fabric:build -Pmc=$mc --no-daemon -q || true
+            bash scripts/setup-262-mappings.sh $mc
+          done
 
       - run: ./gradlew build --stacktrace
+
+      # The same mod for 26.3 (the Hardcore server and its pack), into fabric/build/mc26.3.
+      - run: ./gradlew :fabric:build -Pmc=26.3 --stacktrace
 
       - name: Upload the NeoForge jar
         uses: actions/upload-artifact@v7
@@ -65,5 +71,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: DGGChat-Fabric
-          path: fabric/build/libs/*.jar
+          path: |
+            fabric/build/libs/*.jar
+            fabric/build/mc26.3/libs/*.jar
           if-no-files-found: error
