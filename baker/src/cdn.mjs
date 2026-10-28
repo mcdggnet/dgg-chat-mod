@@ -7,11 +7,23 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import process from 'node:process';
 
-export const EMOTES_JSON = 'https://cdn.destiny.gg/emotes/emotes.json';
-export const EMOTES_CSS = 'https://cdn.destiny.gg/emotes/emotes.css';
-export const FLAIRS_JSON = 'https://cdn.destiny.gg/flairs/flairs.json';
-export const FLAIRS_CSS = 'https://cdn.destiny.gg/flairs/flairs.css';
+// The CDN destiny.gg's own chat reads emotes and flairs from: the data-cdn attribute of
+// www.destiny.gg/embed/chat. It moved from cdn.destiny.gg to r2cdn.destiny.gg in 2026,
+// and the old copies stopped changing (last on 2026-09-23), so a bake that kept reading
+// cdn.destiny.gg missed every emote since, the Halloween set among them. bake.yml reads
+// the attribute and passes it as DGG_CDN, so a later move is followed rather than missed.
+export const CDN_BASE = (process.env.DGG_CDN || 'https://r2cdn.destiny.gg').replace(/\/+$/, '');
+export const EMOTES_JSON = `${CDN_BASE}/emotes/emotes.json`;
+export const EMOTES_CSS = `${CDN_BASE}/emotes/emotes.css`;
+export const FLAIRS_JSON = `${CDN_BASE}/flairs/flairs.json`;
+export const FLAIRS_CSS = `${CDN_BASE}/flairs/flairs.css`;
+
+/** destiny.gg's CDN hosts, today's and the old one a few CSS rules still name. */
+export function isDggCdn(url) {
+  return url.hostname === new URL(CDN_BASE).hostname || url.hostname === 'cdn.destiny.gg';
+}
 
 // cdn.destiny.gg answers 403 to user agents it does not recognise, including Node's.
 const USER_AGENT =

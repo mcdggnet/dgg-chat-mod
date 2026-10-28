@@ -41,15 +41,29 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.compare.outputs.changed }}
+      cdn: ${{ steps.compare.outputs.cdn }}
     steps:
       - name: Compare destiny.gg against what is published
         id: compare
         run: |
           set -euo pipefail
 
+          # The CDN destiny.gg's own chat reads emotes from (data-cdn on its chat page).
+          # It moved from cdn.destiny.gg to r2cdn.destiny.gg in 2026 and the old copies
+          # froze, which hid every new emote for a month; following the attribute means a
+          # move shows up here as a change instead.
+          cdn=$(curl -fsSL -A "$UA" https://www.destiny.gg/embed/chat \
+                | sed -n 's/.*data-cdn="\([^"]*\)".*/\1/p' | head -1)
+          if [ -z "$cdn" ]; then
+            cdn=https://r2cdn.destiny.gg
+            echo "::warning::no data-cdn on destiny.gg's chat page; using $cdn"
+          fi
+          echo "cdn $cdn"
+          echo "cdn=$cdn" >> "$GITHUB_OUTPUT"
+
           # Same four documents in the same order as the baker, so the hashes are comparable.
           current=$(for u in emotes/emotes.json emotes/emotes.css flairs/flairs.json flairs/flairs.css; do
-            curl -fsSL -A "$UA" "https://cdn.destiny.gg/$u"
+            curl -fsSL -A "$UA" "$cdn/$u"
           done | sha256sum | cut -d' ' -f1)
 
           # No site yet, an unreadable manifest, or a manual force: bake.
@@ -89,6 +103,8 @@ jobs:
 
       - name: Bake
         working-directory: baker
+        env:
+          DGG_CDN: ${{ needs.check.outputs.cdn }}
         run: |
           if [ -n "${{ inputs.only }}" ]; then
             node src/bake.mjs --out out --concurrency 4 --only "${{ inputs.only }}"
