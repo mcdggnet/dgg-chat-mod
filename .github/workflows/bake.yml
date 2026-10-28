@@ -23,6 +23,10 @@ on:
         description: "Comma-separated emote prefixes, or blank for all of them"
         required: false
         default: ""
+      cdn:
+        description: "Bake from this CDN instead of the one destiny.gg's chat names (e.g. https://cdn.destiny.gg to republish an older bake)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -52,7 +56,8 @@ jobs:
           # It moved from cdn.destiny.gg to r2cdn.destiny.gg in 2026 and the old copies
           # froze, which hid every new emote for a month; following the attribute means a
           # move shows up here as a change instead.
-          cdn=$(curl -fsSL -A "$UA" https://www.destiny.gg/embed/chat \
+          cdn="${{ inputs.cdn }}"
+          [ -n "$cdn" ] || cdn=$(curl -fsSL -A "$UA" https://www.destiny.gg/embed/chat \
                 | sed -n 's/.*data-cdn="\([^"]*\)".*/\1/p' | head -1)
           if [ -z "$cdn" ]; then
             cdn=https://r2cdn.destiny.gg
