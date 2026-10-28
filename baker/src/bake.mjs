@@ -14,13 +14,14 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 
-import { Cdn, EMOTES_CSS, EMOTES_JSON, FLAIRS_CSS, FLAIRS_JSON, sha256, sniffMime } from './cdn.mjs';
+import { Cdn, CDN_BASE, EMOTES_CSS, EMOTES_JSON, FLAIRS_CSS, FLAIRS_JSON, isDggCdn, sha256, sniffMime } from './cdn.mjs';
 import { harnessHtml, PAD, VIEWPORT } from './harness.mjs';
 import { bakeFlairs } from './flairs.mjs';
 import { cropAndStack, decode, unionAlphaBounds } from './png.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HARNESS_URL = 'https://cdn.destiny.gg/emotes/__bake_harness.html';
+// On the CDN's own origin, beside emotes.css, so the CSS's relative image URLs resolve there.
+const HARNESS_URL = `${CDN_BASE}/emotes/__bake_harness.html`;
 
 const MIME_BY_EXTENSION = {
   '.png': 'image/png',
@@ -123,7 +124,7 @@ async function preparePage(browser, cdn, html) {
     colorScheme: 'dark',
   });
 
-  await page.route('https://cdn.destiny.gg/**', async (route) => {
+  await page.route(isDggCdn, async (route) => {
     const url = route.request().url();
     if (url === HARNESS_URL) {
       await route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html });
@@ -240,7 +241,7 @@ async function main() {
   if (Number.isFinite(options.limit)) selected = selected.slice(0, options.limit);
 
   console.log(
-    `baking ${selected.length} of ${allEmotes.length} emotes at ${options.fps}fps, `
+    `baking ${selected.length} of ${allEmotes.length} emotes from ${CDN_BASE} at ${options.fps}fps, `
       + `up to ${options.maxFrames} frames each, ${options.concurrency} pages`,
   );
 

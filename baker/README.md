@@ -3,7 +3,7 @@
 Renders destiny.gg's emotes in headless Chromium and writes out frames the mod can draw.
 
 Nothing here runs in the game, and the mod does not depend on this code — only on its
-output. This is the only part of the project that talks to `cdn.destiny.gg`.
+output. This is the only part of the project that talks to destiny.gg's CDN (`r2cdn.destiny.gg`, or `DGG_CDN`).
 
 ## Why a browser
 
