@@ -37,7 +37,10 @@ final class DggAssets {
     private static final String NAME_COLON_KEY = "nameColonFormat";
     private static final String SYSTEM_PROPERTY = "dggchat.manifest";
 
-    /** Emote art changes when destiny.gg adds emotes, which is weeks apart, not minutes. */
+    /**
+     * Emote strips. Their names carry a content hash, so a cached one is never wrong; the
+     * window only bounds how long a dead file lingers. The manifest is not on it: see load.
+     */
     private static final Duration REVALIDATE_AFTER = Duration.ofHours(6);
 
     private static volatile EmoteMatcher matcher = EmoteMatcher.none();
@@ -71,9 +74,14 @@ final class DggAssets {
         Path cacheDirectory = gameDirectory.resolve("dggchat-cache");
         AssetCache cache = new AssetCache(cacheDirectory, REVALIDATE_AFTER);
         EmoteTextures.useCache(cache);
+        // The manifest is asked about at every start: a 304 when nothing changed, a new bake
+        // the first launch after one is published. On the strips' six-hour window a restart
+        // kept an old manifest naming strips the new bake had replaced, and those emotes
+        // drew empty (the Halloween bake, 2026-10-28). Offline, the cached copy still serves.
+        AssetCache manifestCache = new AssetCache(cacheDirectory, Duration.ZERO);
 
         String url = manifestUrl(config);
-        Thread loader = new Thread(() -> loadManifest(cache, url), "dggchat-manifest");
+        Thread loader = new Thread(() -> loadManifest(manifestCache, url), "dggchat-manifest");
         loader.setDaemon(true);
         loader.start();
     }
