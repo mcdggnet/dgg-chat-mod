@@ -112,6 +112,26 @@ jobs:
             node src/bake.mjs --out out --concurrency 4
           fi
 
+      # A deploy replaces the whole site, and a game reads the manifest once, at start, then
+      # fetches each emote's strip the first time someone sends it. So a game started before
+      # this deploy, or within the ten minutes Pages caches manifest.json, asks for the
+      # previous bake's files: gone, they draw as empty emotes until a restart (2026-10-28,
+      # the Halloween bake). Every file the published manifest names is kept beside the new
+      # bake, one generation back; names carry a content hash, so nothing collides.
+      - name: Keep the previous bake's files
+        working-directory: baker/out
+        run: |
+          set -euo pipefail
+          site="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          curl -fsSL "$site/manifest.json" -o "$RUNNER_TEMP/previous.json" || { echo "no previous manifest"; exit 0; }
+          kept=0
+          while read -r f; do
+            case "$f" in */*|..*|"") echo "::warning::odd name in the previous manifest: $f"; continue ;; esac
+            [ -e "$f" ] && continue
+            if curl -fsSL "$site/$f" -o "$f"; then kept=$((kept + 1)); else echo "::warning::could not keep $f"; fi
+          done < <(jq -r '(.emotes[] | .file), (.flairs[] | .iconFile // empty)' "$RUNNER_TEMP/previous.json" | sort -u)
+          echo "kept $kept files of the previous bake" | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Write a landing page
         working-directory: baker/out
         run: |
