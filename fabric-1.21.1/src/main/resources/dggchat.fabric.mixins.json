@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "net.mcdgg.chat.fabric.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [],
+  "client": [
+    "ChatComponentMixin",
+    "ClientSuggestionProviderMixin",
+    "FontMixin",
+    "FontSetMixin",
+    "GameRendererMixin",
+    "GuiMixin",
+    "PlayerTabOverlayMixin"
+  ],
+  "server": []
+}

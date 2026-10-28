@@ -49,3 +49,7 @@ include(":neoforge")
 // Fabric packs). Shares :dgg-chat-api and :dgg-chat-core; only the platform glue and
 // the mixins differ.
 include(":fabric")
+
+// The same mod for Fabric 1.21.1 (the Cobble server and its pack): the NeoForge mod's
+// 1.21.1 code with Fabric's entry points, since nearly every class differs from 26.x.
+include(":fabric-1.21.1")

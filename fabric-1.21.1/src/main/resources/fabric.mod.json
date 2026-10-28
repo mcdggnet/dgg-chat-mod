@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "dggchat",
+  "version": "${version}",
+  "name": "DGG Chat",
+  "description": "Destiny.gg emotes, flairs and username colours in Minecraft chat. Optional on both sides.",
+  "authors": ["mcdgg"],
+  "contact": { "homepage": "https://mcdgg.net" },
+  "license": "Proprietary",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["net.mcdgg.chat.fabric.DggChatFabric"],
+    "client": ["net.mcdgg.chat.fabric.client.DggChatFabricClient"]
+  },
+  "mixins": ["dggchat.fabric.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

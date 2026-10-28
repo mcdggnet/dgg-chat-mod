@@ -20,6 +20,7 @@ manifest, chat looks exactly like vanilla chat.
 | `dgg-chat-api` | the identity SPI another mod implements. 4 tests. |
 | `neoforge` | the mod: optional payload, identity relay, glyph provider, chat rewrite. 15 tests. |
 | `fabric` | the same mod for Fabric 26.2 (the main client pack) and 26.3 (the Hardcore server and its pack). |
+| `fabric-1.21.1` | the same mod for Fabric 1.21.1 (the Cobble server and its pack). |
 | `baker` | the Playwright bake. Produces all 324 emotes and 46 flairs. |
 
 ### What was actually verified
@@ -99,6 +100,18 @@ Matches `dggauth-proxy`, which is already built and deployed against this stack.
 | Pack | ATM10 7.3 |
 | Java | release 21 |
 | Build | ModDevGradle 2.0.143 |
+
+### Fabric 1.21.1 (`fabric-1.21.1/`)
+
+The Cobble server and its pack run COBBLEVERSE, which is Fabric on Minecraft 1.21.1, so the
+mod exists there too, as `DGGChat-Fabric-<version>+1.21.1.jar`. A module of its own rather
+than another `-Pmc` target of `fabric/`: nearly every class touches the font, chat or
+networking APIs 26.x rewrote, while 1.21.1 is the version `neoforge/` already targets. So it
+is the NeoForge mod's code with Fabric's entry points in place of NeoForge's events:
+`DggChatFabric` / `DggChatFabricClient` (payload type, server relay, client receiver), a
+`ChatComponentMixin` hook on `addMessage` for `ClientChatReceivedEvent`, and
+`GameRendererMixin` for `RenderFrameEvent`. Built against Mojang's mappings, which 1.21.1
+publishes, so it needs none of the identity-mapping setup below.
 
 ### Fabric 26.x (`fabric/`)
 
@@ -474,6 +487,7 @@ that generic would collide and one of the two would lose.
 | `dgg-chat-core` | `core/` | chat-gui's rules: emote matching, flair resolution, username colour, the manifest model, the asset cache. Also platform-free, which is the point: the parts that have to match destiny.gg are the parts worth testing without a game around. |
 | `neoforge` | `neoforge/` | the mod. Ships as `DGGChat-NeoForge-<version>.jar`. |
 | `fabric` | `fabric/` | the mod for Fabric 26.x. Ships as `DGGChat-Fabric-<version>.jar` (26.2) and `DGGChat-Fabric-<version>+26.3.jar`. |
+| `fabric-1.21.1` | `fabric-1.21.1/` | the mod for Fabric 1.21.1. Ships as `DGGChat-Fabric-<version>+1.21.1.jar`. |
 | `baker` | `baker/` | the Playwright bake. Node, not Java; runs in CI, never in the game. |
 
 ### Building
@@ -485,6 +499,7 @@ that generic would collide and one of the two would lose.
 ./gradlew :neoforge:runServer
 ./gradlew :fabric:build           # 26.2; needs its identity mapping, see below
 ./gradlew :fabric:build -Pmc=26.3 # 26.3, into fabric/build/mc26.3/libs
+./gradlew :fabric-1.21.1:build    # 1.21.1, into fabric-1.21.1/build/libs
 ```
 
 Java 21 (NeoForge) and Java 25 (Fabric) are fetched by the toolchain if the machine has
